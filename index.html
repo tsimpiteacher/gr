@@ -71,13 +71,20 @@ label.file-btn input{position:absolute;inset:0;opacity:0;cursor:pointer}
 .chip.bad{background:var(--gr-soft);border-color:transparent;color:var(--gr)}
 .chip.good{background:var(--ok-soft);border-color:transparent;color:var(--ok)}
 .chip.warn{background:var(--warn-soft);border-color:transparent;color:var(--warn)}
-.main{display:grid;grid-template-columns:minmax(300px,380px) minmax(0,1fr);gap:16px;align-items:start}
-.roster{display:flex;flex-direction:column;min-width:0}
+.main{display:block}
+.roster{display:flex;flex-direction:column;min-width:0;position:fixed;top:0;bottom:0;left:0;z-index:30;width:min(400px,92vw);
+  border-radius:0 12px 12px 0;transform:translateX(-105%);transition:transform .22s ease;visibility:hidden;
+  padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px);padding-left:env(safe-area-inset-left,0px);box-shadow:0 10px 40px rgba(0,0,0,.25)}
+.roster.open{transform:none;visibility:visible}
+.scrim{position:fixed;inset:0;z-index:25;background:transparent}
+.rtop{display:flex;align-items:center;justify-content:space-between;gap:8px}
+.close{border:0;background:transparent;font-size:1.3rem;line-height:1;padding:4px 8px}
+.menu-btn .badge{background:var(--warn-soft);color:var(--warn);border-radius:999px;padding:0 7px;font-size:.75rem}
 .roster-head{padding:12px 14px;border-bottom:1px solid var(--line);display:flex;flex-direction:column;gap:8px}
 .seg{display:flex;flex-wrap:wrap;max-width:100%;width:fit-content;border:1px solid var(--line);border-radius:8px;overflow:hidden}
 .seg button{border:0;border-radius:0;padding:5px 10px;font-weight:500}
 .seg button[aria-pressed="true"]{background:var(--ink);color:var(--panel)}
-.tlist{list-style:none;margin:0;padding:0;max-height:72vh;overflow:auto}
+.tlist{list-style:none;margin:0;padding:0;flex:1;overflow:auto;min-height:0}
 .t{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:4px 10px;padding:9px 14px;border-bottom:1px solid var(--line);align-items:center}
 .t:last-child{border-bottom:0}
 .t.hl{background:var(--gr-soft)}
@@ -96,7 +103,7 @@ label.file-btn input{position:absolute;inset:0;opacity:0;cursor:pointer}
 .gridhead{padding:12px 14px;border-bottom:1px solid var(--line);display:flex;flex-wrap:wrap;gap:8px 16px;align-items:center;justify-content:space-between}
 .legend{display:flex;flex-wrap:wrap;gap:6px 14px;color:var(--muted);font-size:.8rem}
 .legend i{display:inline-block;width:14px;height:14px;border-radius:3px;vertical-align:-2px;margin-right:4px;border:1px solid var(--line)}
-.scroll{overflow:auto;max-height:76vh}
+.scroll{overflow:auto;max-height:calc(100vh - 120px)}
 table{border-collapse:separate;border-spacing:0;font-variant-numeric:tabular-nums;font-size:.78rem}
 th,td{padding:0;text-align:center;white-space:nowrap}
 thead th{position:sticky;background:var(--panel);z-index:2;color:var(--muted);font-weight:600}
@@ -129,8 +136,6 @@ td.covX{color:var(--muted);font-weight:400}
 @media (max-width:900px){
   .controls{grid-template-columns:1fr}
   .controls>section+section{border-left:0;border-top:1px solid var(--line)}
-  .main{grid-template-columns:1fr}
-  .tlist{max-height:none}
   .scroll{max-height:none}
 }
 @media (prefers-reduced-motion:reduce){*{transition:none!important}}
@@ -187,9 +192,10 @@ td.covX{color:var(--muted);font-weight:400}
   <div id="error" class="err" hidden></div>
 
   <div class="main" id="mainview" hidden>
-    <div class="panel roster">
+    <div class="scrim" id="scrim" hidden></div>
+    <aside class="panel roster" id="roster" aria-label="Εκπαιδευτικοί">
       <div class="roster-head">
-        <p class="label" style="margin:0">ΓΡ ανά εβδομάδα</p>
+        <div class="rtop"><p class="label" style="margin:0">Εκπαιδευτικοί · ΓΡ ανά εβδομάδα</p><button type="button" class="close" id="close" aria-label="Κλείσιμο">✕</button></div>
         <div class="seg" role="group" aria-label="Φίλτρο">
           <button type="button" data-f="all" aria-pressed="true">Όλοι</button>
           <button type="button" data-f="ex" aria-pressed="false">Εξαιρέσεις</button>
@@ -199,11 +205,11 @@ td.covX{color:var(--muted);font-weight:400}
       </div>
       <ul class="tlist" id="tlist"></ul>
       <p class="note">0 = εξαίρεση, 1 = κανονικά, 2+ = επιβάρυνση. Οι επιλογές σου μένουν αποθηκευμένες σε αυτόν τον browser για την επόμενη εβδομάδα.</p>
-    </div>
+    </aside>
 
     <div class="panel gridbox">
       <div class="gridhead">
-        <p class="label" style="margin:0">Εβδομαδιαίο πρόγραμμα</p>
+        <button type="button" class="menu-btn" id="menu" aria-controls="roster" aria-expanded="false">☰ Εκπαιδευτικοί<span class="badge" id="badge" hidden></span></button>
         <div class="legend">
           <span><i style="background:var(--gr)"></i>ΓΡ</span>
           <span><i style="background:var(--lesson)"></i>Μάθημα</span>
@@ -220,6 +226,10 @@ td.covX{color:var(--muted);font-weight:400}
 <div class="toast" id="toast" hidden></div>
 
 <script src="exceljs.min.js"></script>
+<script>
+// If the local copy did not load (old cache, blocked file), load the same library from a CDN.
+if (!window.ExcelJS) document.write('<script src="https://cdn.jsdelivr.net/npm/exceljs@4.4.0/dist/exceljs.min.js"><\/script>');
+</script>
 <script>
 // ΓΡ scheduling engine — shared by the page and the Node test.
 const DAYS = ['Δευτέρα', 'Τρίτη', 'Τετάρτη', 'Πέμπτη', 'Παρασκευή'];
@@ -569,6 +579,7 @@ function showError(msg){ const e = $('error'); e.textContent = msg; e.hidden = !
 
 async function loadBuffer(buf, name){
   showError('');
+  if (!window.ExcelJS) { showError('Η βιβλιοθήκη για τα αρχεία Excel δεν φόρτωσε. Κλείσε και ξανάνοιξε την εφαρμογή ή πάτα Ctrl+Shift+R. Χρειάζεται σύνδεση στο internet την πρώτη φορά.'); return; }
   try {
     const wb = new ExcelJS.Workbook(); await wb.xlsx.load(buf.slice(0));
     const m = parseSheet(wb.worksheets[0]);
@@ -625,7 +636,13 @@ function renderSummary(){
     ${dup ? `<span class="chip warn"><b>${dup}</b> ${dup === 1 ? 'ώρα' : 'ώρες'} με 2+ ΓΡ</span>` : ''}
     ${short ? `<span class="chip warn"><b>${short}</b> χωρίς όλα τα ΓΡ τους (δες «Προβλήματα»)</span>` : ''}`;
 }
+function setDrawer(open){
+  $('roster').classList.toggle('open', open); $('scrim').hidden = !open; $('menu').setAttribute('aria-expanded', open);
+  if (open) $('close').focus();
+}
 function renderRoster(){
+  const nShort = S.model.teachers.filter((t,i) => S.assign[i].length < S.quotas[i]).length;
+  $('badge').textContent = nShort; $('badge').hidden = !nShort; $('badge').title = nShort + ' με λιγότερα ΓΡ από τον στόχο';
   const m = S.model, el = $('tlist');
   el.innerHTML = '';
   m.teachers.forEach((t,i) => {
@@ -690,6 +707,7 @@ $('tlist').addEventListener('click', e => {
   }
   const n = e.target.closest('.nm');
   if (n) { const i = +n.dataset.i; S.hl = S.hl === i ? -1 : i; renderRoster(); renderGrid();
+    if (S.hl === i && window.innerWidth < 900) setDrawer(false);
     const row = $('grid').tBodies[0].rows[i]; if (row && S.hl === i) row.scrollIntoView({ block:'nearest' }); }
 });
 $('grid').addEventListener('click', e => {
@@ -715,6 +733,10 @@ $('grid').addEventListener('click', e => {
   render();
 });
 $('run').addEventListener('click', () => run());
+$('menu').addEventListener('click', () => setDrawer(!$('roster').classList.contains('open')));
+$('close').addEventListener('click', () => { setDrawer(false); $('menu').focus(); });
+$('scrim').addEventListener('click', () => setDrawer(false));
+document.addEventListener('keydown', e => { if (e.key === 'Escape' && $('roster').classList.contains('open')) { setDrawer(false); $('menu').focus(); } });
 document.querySelectorAll('.rules input').forEach(i => i.addEventListener('change', () => { persist(); run(); }));
 document.querySelectorAll('.seg button').forEach(b => b.addEventListener('click', () => {
   S.filter = b.dataset.f; document.querySelectorAll('.seg button').forEach(x => x.setAttribute('aria-pressed', x === b)); renderRoster();
