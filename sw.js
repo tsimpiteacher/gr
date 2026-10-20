@@ -1,0 +1,15 @@
+// Offline cache for the app shell. Bump VERSION on every release.
+const VERSION = 'gr-v1';
+const SHELL = ['./', 'index.html', 'exceljs.min.js', 'manifest.webmanifest', 'icon-192.png', 'icon-512.png', 'apple-touch-icon.png'];
+self.addEventListener('install', e => { e.waitUntil(caches.open(VERSION).then(c => c.addAll(SHELL)).then(() => self.skipWaiting())); });
+self.addEventListener('activate', e => { e.waitUntil(caches.keys().then(ks => Promise.all(ks.filter(k => k !== VERSION).map(k => caches.delete(k)))).then(() => self.clients.claim())); });
+self.addEventListener('fetch', e => {
+  if (e.request.method !== 'GET') return;
+  // network first for the page so updates arrive; cache fallback when offline
+  e.respondWith(fetch(e.request).then(r => {
+    if (r.ok && (new URL(e.request.url).origin === location.origin || e.request.url.includes('fonts.g'))) {
+      const copy = r.clone(); caches.open(VERSION).then(c => c.put(e.request, copy));
+    }
+    return r;
+  }).catch(() => caches.match(e.request).then(r => r || caches.match('index.html'))));
+});

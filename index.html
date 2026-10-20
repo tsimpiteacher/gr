@@ -1,0 +1,669 @@
+<!doctype html>
+<html lang="el">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Κατανομή ΓΡ</title>
+<meta name="description" content="Κατανομή ΓΡ στο ωρολόγιο πρόγραμμα του σχολείου">
+<meta name="theme-color" content="#c62828">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icon-192.png">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Commissioner:wght@400;500;600;700&family=Literata:opsz,wght@7..72,600&display=swap">
+<style>
+/* Layout: control strip on top, teacher roster (left) beside the weekly grid (right); stacks on phones. */
+:root{
+  --bg:#f4f6f9; --panel:#ffffff; --ink:#1b2531; --muted:#5d6979; --line:#dbe1e9;
+  --lesson:#eaeef4; --lesson-ink:#7a8696;
+  --gr:#c62828; --gr-soft:#fdeaea; --gr-ink:#ffffff;
+  --ok:#2e7d4f; --ok-soft:#e3f2e8; --warn:#a85d00; --warn-soft:#fff1dc;
+  --focus:#2f5fa7;
+  --f-ui:"Commissioner",system-ui,"Segoe UI",Arial,sans-serif;
+  --f-display:"Literata",Georgia,"Times New Roman",serif;
+}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){
+  --bg:#12171e; --panel:#1a212b; --ink:#e6ebf2; --muted:#9aa6b6; --line:#2c3644;
+  --lesson:#222b37; --lesson-ink:#8090a3;
+  --gr:#ef5350; --gr-soft:#3a1f22; --gr-ink:#ffffff;
+  --ok:#5cc28a; --ok-soft:#183025; --warn:#f0a64a; --warn-soft:#33261a; --focus:#8ab4f8; color-scheme:dark}}
+:root[data-theme="dark"]{
+  --bg:#12171e; --panel:#1a212b; --ink:#e6ebf2; --muted:#9aa6b6; --line:#2c3644;
+  --lesson:#222b37; --lesson-ink:#8090a3;
+  --gr:#ef5350; --gr-soft:#3a1f22; --gr-ink:#ffffff;
+  --ok:#5cc28a; --ok-soft:#183025; --warn:#f0a64a; --warn-soft:#33261a; --focus:#8ab4f8; color-scheme:dark}
+*{box-sizing:border-box}
+html,body{margin:0}
+[hidden]{display:none!important}
+body{background:var(--bg);color:var(--ink);font-family:var(--f-ui);font-size:14px;line-height:1.45;
+  padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));padding-block:20px 40px}
+.wrap{max-width:1500px;margin:0 auto;display:flex;flex-direction:column;gap:16px}
+h1{font-family:var(--f-display);font-weight:600;font-size:1.7rem;margin:0;text-wrap:balance;letter-spacing:-.01em}
+h1 .mark{display:inline-block;background:var(--gr);color:var(--gr-ink);font-family:var(--f-ui);font-weight:700;font-size:.8em;padding:.05em .35em;border-radius:4px;margin-right:.3em;vertical-align:.08em}
+.sub{color:var(--muted);margin:2px 0 0}
+header{display:flex;flex-wrap:wrap;align-items:flex-end;justify-content:space-between;gap:12px}
+.panel{background:var(--panel);border:1px solid var(--line);border-radius:10px}
+button,.btn{font:inherit;font-weight:600;border-radius:8px;border:1px solid var(--line);background:var(--panel);color:var(--ink);padding:8px 14px;cursor:pointer;display:inline-flex;align-items:center;gap:6px}
+button:hover{border-color:var(--muted)}
+button.primary{background:var(--gr);border-color:var(--gr);color:var(--gr-ink)}
+button.primary:hover{filter:brightness(1.07)}
+button:focus-visible,input:focus-visible,label.file:focus-within{outline:2px solid var(--focus);outline-offset:2px}
+button:disabled{opacity:.5;cursor:default}
+.actions{display:flex;flex-wrap:wrap;gap:8px}
+.controls{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.6fr);gap:0}
+.controls>section{padding:14px 16px;min-width:0}
+.controls>section+section{border-left:1px solid var(--line)}
+.label{font-size:.72rem;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);margin:0 0 8px}
+.file{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+.fname{font-weight:600;word-break:break-word}
+label.file-btn{position:relative;overflow:hidden}
+label.file-btn input{position:absolute;inset:0;opacity:0;cursor:pointer}
+.drop{border:1.5px dashed transparent;border-radius:10px}
+.drop.over{border-color:var(--gr);background:var(--gr-soft)}
+.rules{display:grid;grid-template-columns:repeat(auto-fill,minmax(250px,1fr));gap:6px 18px}
+.rules label{display:flex;gap:8px;align-items:flex-start;cursor:pointer}
+.rules input{margin-top:3px;accent-color:var(--gr)}
+.summary{display:flex;flex-wrap:wrap;gap:8px}
+.chip{display:inline-flex;align-items:baseline;gap:6px;padding:6px 10px;border-radius:999px;background:var(--panel);border:1px solid var(--line);font-variant-numeric:tabular-nums}
+.chip b{font-size:1.05rem}
+.chip.bad{background:var(--gr-soft);border-color:transparent;color:var(--gr)}
+.chip.good{background:var(--ok-soft);border-color:transparent;color:var(--ok)}
+.chip.warn{background:var(--warn-soft);border-color:transparent;color:var(--warn)}
+.main{display:grid;grid-template-columns:minmax(300px,380px) minmax(0,1fr);gap:16px;align-items:start}
+.roster{display:flex;flex-direction:column;min-width:0}
+.roster-head{padding:12px 14px;border-bottom:1px solid var(--line);display:flex;flex-direction:column;gap:8px}
+.seg{display:flex;flex-wrap:wrap;max-width:100%;width:fit-content;border:1px solid var(--line);border-radius:8px;overflow:hidden}
+.seg button{border:0;border-radius:0;padding:5px 10px;font-weight:500}
+.seg button[aria-pressed="true"]{background:var(--ink);color:var(--panel)}
+.tlist{list-style:none;margin:0;padding:0;max-height:72vh;overflow:auto}
+.t{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:4px 10px;padding:9px 14px;border-bottom:1px solid var(--line);align-items:center}
+.t:last-child{border-bottom:0}
+.t.hl{background:var(--gr-soft)}
+.t .nm{font-weight:600;min-width:0;overflow-wrap:anywhere;cursor:pointer}
+.t .meta{grid-column:1;color:var(--muted);font-size:.8rem;font-variant-numeric:tabular-nums;display:flex;flex-wrap:wrap;gap:4px 10px}
+.t .tag{font-size:.72rem;font-weight:700;padding:1px 7px;border-radius:999px}
+.tag.ex{background:var(--lesson);color:var(--muted)}
+.tag.more{background:var(--gr-soft);color:var(--gr)}
+.tag.short{background:var(--warn-soft);color:var(--warn)}
+.step{grid-row:1/span 2;grid-column:2;display:flex;align-items:center;border:1px solid var(--line);border-radius:8px;overflow:hidden}
+.step button{border:0;border-radius:0;padding:4px 10px;font-size:1rem;line-height:1}
+.step output{min-width:2ch;text-align:center;font-weight:700;font-variant-numeric:tabular-nums}
+.step output.zero{color:var(--muted)}
+.step output.up{color:var(--gr)}
+.gridbox{min-width:0;display:flex;flex-direction:column}
+.gridhead{padding:12px 14px;border-bottom:1px solid var(--line);display:flex;flex-wrap:wrap;gap:8px 16px;align-items:center;justify-content:space-between}
+.legend{display:flex;flex-wrap:wrap;gap:6px 14px;color:var(--muted);font-size:.8rem}
+.legend i{display:inline-block;width:14px;height:14px;border-radius:3px;vertical-align:-2px;margin-right:4px;border:1px solid var(--line)}
+.scroll{overflow:auto;max-height:76vh}
+table{border-collapse:separate;border-spacing:0;font-variant-numeric:tabular-nums;font-size:.78rem}
+th,td{padding:0;text-align:center;white-space:nowrap}
+thead th{position:sticky;background:var(--panel);z-index:2;color:var(--muted);font-weight:600}
+thead tr:first-child th{top:0;height:26px;border-bottom:1px solid var(--line)}
+thead tr:nth-child(2) th{top:26px;height:22px;border-bottom:1px solid var(--line)}
+th.day{color:var(--ink);font-weight:700;border-left:2px solid var(--line)}
+th.nmcol,td.nmcol{position:sticky;left:0;background:var(--panel);z-index:1;text-align:left;padding:0 10px;max-width:190px;overflow:hidden;text-overflow:ellipsis;border-right:1px solid var(--line)}
+thead th.nmcol{z-index:3}
+td.c{width:34px;min-width:34px;height:26px;border-bottom:1px solid var(--line);cursor:default;position:relative}
+td.c.dstart,th.dstart{border-left:2px solid var(--line)}
+td.L{background:var(--lesson);color:var(--lesson-ink);font-size:.68rem}
+td.F.ok{cursor:pointer}
+td.F.ok:hover{background:var(--gr-soft)}
+td.F.no{background:repeating-linear-gradient(135deg,transparent 0 4px,var(--lesson) 4px 5px)}
+td.G{background:var(--gr);color:var(--gr-ink);font-weight:700;cursor:pointer}
+td.G.lock::after{content:"";position:absolute;top:3px;right:3px;width:5px;height:5px;border-radius:50%;background:var(--gr-ink)}
+tr.staff td.nmcol{color:var(--muted)}
+tr.hl td.nmcol{color:var(--gr);font-weight:700}
+tr.hl td.c{box-shadow:inset 0 2px 0 var(--gr),inset 0 -2px 0 var(--gr)}
+tfoot td{height:28px;font-weight:700;border-top:2px solid var(--line);background:var(--panel);position:sticky;bottom:0}
+tfoot td.c{cursor:default}
+td.cov0{background:var(--gr-soft);color:var(--gr)}
+td.cov1{color:var(--ok)}
+td.covN{color:var(--ink)}
+td.covX{color:var(--muted);font-weight:400}
+.note{color:var(--muted);font-size:.8rem;margin:0;padding:10px 14px;border-top:1px solid var(--line)}
+.toast{position:fixed;left:50%;bottom:calc(20px + env(safe-area-inset-bottom,0px));transform:translateX(-50%);background:var(--ink);color:var(--panel);padding:10px 16px;border-radius:8px;font-weight:600;max-width:calc(100% - 32px);z-index:20}
+.err{background:var(--gr-soft);color:var(--gr);padding:10px 14px;border-radius:8px;font-weight:600}
+@media (max-width:900px){
+  .controls{grid-template-columns:1fr}
+  .controls>section+section{border-left:0;border-top:1px solid var(--line)}
+  .main{grid-template-columns:1fr}
+  .tlist{max-height:none}
+  .scroll{max-height:none}
+}
+@media (prefers-reduced-motion:reduce){*{transition:none!important}}
+.empty{padding:40px 20px;text-align:center;display:flex;flex-direction:column;align-items:center;gap:12px}
+.empty h2{font-family:var(--f-display);font-weight:600;margin:0;font-size:1.3rem}
+.empty p{color:var(--muted);margin:0;max-width:56ch}
+.big{font-size:1rem;padding:12px 20px}
+</style>
+</head>
+<body>
+
+<div class="wrap drop" id="drop">
+  <header>
+    <div>
+      <h1><span class="mark">ΓΡ</span>Κατανομή γραφείου</h1>
+      <p class="sub" id="school">Ανέβασε το ωρολόγιο πρόγραμμα για να ξεκινήσεις</p>
+    </div>
+    <div class="actions">
+      <button id="install" type="button" hidden>Εγκατάσταση</button>
+      <button id="run" class="primary" type="button">Νέα κατανομή</button>
+      <button id="save" type="button">Αποθήκευση Excel</button>
+    </div>
+  </header>
+
+  <div class="panel controls">
+    <section>
+      <p class="label">Ωρολόγιο πρόγραμμα</p>
+      <div class="file">
+        <span class="fname" id="fname">Κανένα αρχείο</span>
+        <label class="btn file-btn" for="file">Άλλο αρχείο…<input id="file" type="file" accept=".xlsx"></label>
+      </div>
+      <p class="sub" style="font-size:.8rem;margin-top:6px">Ή σύρε εδώ ένα .xlsx με την ίδια μορφή.</p>
+    </section>
+    <section>
+      <p class="label">Κανόνες</p>
+      <div class="rules">
+        <label><input type="checkbox" id="r-last" checked> Όχι ΓΡ στην τελευταία ώρα της ημέρας (7η)</label>
+        <label><input type="checkbox" id="r-day" checked> Το πολύ ένα ΓΡ τη μέρα ανά εκπαιδευτικό</label>
+        <label><input type="checkbox" id="r-present" checked> Μόνο σε μέρα που ο εκπαιδευτικός έχει μάθημα</label>
+        <label><input type="checkbox" id="r-between"> Μόνο σε κενό ανάμεσα σε μαθήματα</label>
+        <label><input type="checkbox" id="r-keep"> Κράτα τα ΓΡ που υπάρχουν ήδη στο αρχείο</label>
+      </div>
+    </section>
+  </div>
+
+  <div class="panel empty" id="empty">
+    <h2>Ανέβασε το ωρολόγιο πρόγραμμα</h2>
+    <p>Το αρχείο Excel με τους εκπαιδευτικούς στη στήλη Α και τις ημέρες Δευτέρα–Παρασκευή στην επικεφαλίδα. Η επεξεργασία γίνεται μόνο στη συσκευή σου· το αρχείο δεν ανεβαίνει πουθενά.</p>
+    <label class="btn file-btn primary big" for="file2" style="background:var(--gr);color:var(--gr-ink);border-color:var(--gr)">Επιλογή αρχείου .xlsx<input id="file2" type="file" accept=".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"></label>
+    <p style="font-size:.8rem">ή σύρε το αρχείο σε αυτή τη σελίδα</p>
+  </div>
+  <div class="summary" id="summary"></div>
+  <div id="error" class="err" hidden></div>
+
+  <div class="main" id="mainview" hidden>
+    <div class="panel roster">
+      <div class="roster-head">
+        <p class="label" style="margin:0">ΓΡ ανά εβδομάδα</p>
+        <div class="seg" role="group" aria-label="Φίλτρο">
+          <button type="button" data-f="all" aria-pressed="true">Όλοι</button>
+          <button type="button" data-f="ex" aria-pressed="false">Εξαιρέσεις</button>
+          <button type="button" data-f="more" aria-pressed="false">Επιβάρυνση</button>
+          <button type="button" data-f="short" aria-pressed="false">Προβλήματα</button>
+        </div>
+      </div>
+      <ul class="tlist" id="tlist"></ul>
+      <p class="note">0 = εξαίρεση, 1 = κανονικά, 2+ = επιβάρυνση. Οι επιλογές σου μένουν αποθηκευμένες σε αυτόν τον browser για την επόμενη εβδομάδα.</p>
+    </div>
+
+    <div class="panel gridbox">
+      <div class="gridhead">
+        <p class="label" style="margin:0">Εβδομαδιαίο πρόγραμμα</p>
+        <div class="legend">
+          <span><i style="background:var(--gr)"></i>ΓΡ</span>
+          <span><i style="background:var(--lesson)"></i>Μάθημα</span>
+          <span><i style="background:repeating-linear-gradient(135deg,transparent 0 4px,var(--lesson) 4px 5px)"></i>Κενό εκτός κανόνων</span>
+          <span>Κλικ σε κενό: βάζεις ΓΡ (κλειδώνει) · κλικ σε ΓΡ: το βγάζεις</span>
+        </div>
+      </div>
+      <div class="scroll"><table id="grid"></table></div>
+      <p class="note">Κάτω γραμμή: πόσα ΓΡ έχει κάθε ώρα. Κόκκινο = ώρα χωρίς κανέναν στο γραφείο.</p>
+    </div>
+  </div>
+</div>
+<div class="toast" id="toast" hidden></div>
+
+<script src="exceljs.min.js"></script>
+<script>
+// ΓΡ scheduling engine — shared by the page and the Node test.
+const DAYS = ['Δευτέρα', 'Τρίτη', 'Τετάρτη', 'Πέμπτη', 'Παρασκευή'];
+const GR = 'ΓΡ';
+
+function colName(n) { let s = ''; while (n > 0) { const m = (n - 1) % 26; s = String.fromCharCode(65 + m) + s; n = Math.floor((n - 1) / 26); } return s; }
+function colNum(s) { let n = 0; for (const ch of s) n = n * 26 + ch.charCodeAt(0) - 64; return n; }
+function parseAddr(a) { const m = /^([A-Z]+)(\d+)$/.exec(a.replace(/\$/g, '')); return { c: colNum(m[1]), r: +m[2] }; }
+function txt(v) {
+  if (v == null) return '';
+  if (typeof v === 'object') {
+    if (v.richText) return v.richText.map(x => x.text).join('').trim();
+    if (v.formula || v.sharedFormula) return '';
+    if (v.text) return String(v.text).trim();
+    if ('result' in v) return v.result == null ? '' : String(v.result).trim();
+  }
+  return String(v).trim();
+}
+const norm = s => s.replace(/\s+/g, ' ').trim();
+
+function parseSheet(ws) {
+  // locate header row with day names
+  let dayRow = 0;
+  for (let r = 1; r <= Math.min(ws.rowCount, 30) && !dayRow; r++)
+    ws.getRow(r).eachCell({ includeEmpty: false }, c => { if (txt(c.value) === DAYS[0]) dayRow = r; });
+  if (!dayRow) throw new Error('Δεν βρέθηκε η γραμμή με τις ημέρες (Δευτέρα … Παρασκευή).');
+  const perRow = dayRow + 1;
+  // day start columns
+  const dayStarts = [];
+  ws.getRow(dayRow).eachCell({ includeEmpty: false }, c => { const i = DAYS.indexOf(txt(c.value)); if (i >= 0) dayStarts.push({ day: i, col: c.col }); });
+  dayStarts.sort((a, b) => a.col - b.col);
+  const slots = [];
+  dayStarts.forEach((d, k) => {
+    const end = k + 1 < dayStarts.length ? dayStarts[k + 1].col - 1 : d.col + 9;
+    for (let c = d.col; c <= end; c++) {
+      const p = parseInt(txt(ws.getCell(perRow, c).value), 10);
+      if (p > 0) slots.push({ col: c, day: d.day, period: p });
+      else if (k + 1 === dayStarts.length) break;
+    }
+  });
+  const maxPeriod = {};
+  slots.forEach(s => { maxPeriod[s.day] = Math.max(maxPeriod[s.day] || 0, s.period); });
+  const firstCol = slots[0].col, lastCol = slots[slots.length - 1].col;
+
+  // merges
+  const merges = (ws.model.merges || []).map(m => { const [a, b] = m.split(':'); const A = parseAddr(a), B = parseAddr(b || a); return { r1: A.r, c1: A.c, r2: B.r, c2: B.c }; });
+  const mergeAt = (r, c) => merges.find(m => r >= m.r1 && r <= m.r2 && c >= m.c1 && c <= m.c2);
+
+  // teacher rows
+  const teachers = [];
+  for (let r = perRow + 1; r <= ws.rowCount; r++) {
+    const name = norm(txt(ws.getCell(r, 1).value));
+    if (!name) break;
+    const spec = norm(txt(ws.getCell(r, 2).value));
+    const cells = slots.map(s => {
+      const m = mergeAt(r, s.col);
+      const v = m ? txt(ws.getCell(m.r1, m.c1).value) : txt(ws.getCell(r, s.col).value);
+      return { v, merged: !!m, wide: m ? (m.c2 - m.c1 + 1) : 1 };
+    });
+    const staff = cells.some(c => c.wide >= 8); // e.g. ΝΟΣΗΛΕΥΤΗΣ across the week
+    teachers.push({
+      row: r, name, spec, staff,
+      cells: cells.map(c => c.v === GR && !c.merged ? 'G' : (c.v ? 'L' : 'F')),
+      labels: cells.map(c => (c.v === GR ? '' : c.v)),
+    });
+  }
+  // stats row (existing COUNTIF row) or two rows below the table
+  const lastTeacherRow = teachers.length ? teachers[teachers.length - 1].row : perRow;
+  let statsRow = 0;
+  for (let r = lastTeacherRow + 1; r <= Math.min(ws.rowCount, lastTeacherRow + 10) && !statsRow; r++) {
+    const v = ws.getCell(r, firstCol).value;
+    if (v && typeof v === 'object' && v.formula && /COUNTIF/i.test(v.formula)) statsRow = r;
+  }
+  if (!statsRow) statsRow = lastTeacherRow + 2;
+  return { dayRow, perRow, slots, maxPeriod, firstCol, lastCol, teachers, statsRow, title: [txt(ws.getCell(1, 1).value), txt(ws.getCell(2, 1).value)].filter(Boolean).join(' · ') };
+}
+
+// which slot indices can teacher t take a ΓΡ in
+function eligible(model, t, rules) {
+  const out = [];
+  const lessonsByDay = {};
+  model.slots.forEach((s, i) => { if (t.cells[i] === 'L') (lessonsByDay[s.day] = lessonsByDay[s.day] || []).push(s.period); });
+  model.slots.forEach((s, i) => {
+    if (t.cells[i] === 'L') return;
+    if (rules.noLastPeriod && s.period === model.maxPeriod[s.day]) return;
+    const ls = lessonsByDay[s.day] || [];
+    if (rules.onlyBetween && !(ls.some(p => p < s.period) && ls.some(p => p > s.period))) return;
+    if (rules.onlyTeachingDays && !ls.length) return;
+    if (rules.blockedPeriods && rules.blockedPeriods.includes(s.period)) return;
+    out.push(i);
+  });
+  return out;
+}
+
+function rng(seed) { let x = seed >>> 0 || 1; return () => { x ^= x << 13; x ^= x >>> 17; x ^= x << 5; return ((x >>> 0) % 1e9) / 1e9; }; }
+
+// Assign ΓΡ. quotas: array per teacher. fixed: set of "t:i" kept as-is. Returns {assign: Array<Set<slot>>, shortfall}
+function solve(model, quotas, rules, opts = {}) {
+  const N = model.slots.length, T = model.teachers.length;
+  const elig = model.teachers.map(t => eligible(model, t, rules));
+  const rand = rng(opts.seed || Date.now());
+  const restarts = opts.restarts || 60;
+  const fixed = opts.fixed || model.teachers.map(() => []);
+  let best = null;
+  const score = cnt => { let s = 0, z = 0; const usable = cntUsable; for (let i = 0; i < N; i++) { s += cnt[i] * cnt[i]; if (usable[i] && !cnt[i]) z++; } return s + z * 1000; };
+  const cntUsable = new Array(N).fill(false);
+  elig.forEach((e, t) => { if (quotas[t] > 0) e.forEach(i => cntUsable[i] = true); });
+
+  for (let run = 0; run < restarts; run++) {
+    const cnt = new Array(N).fill(0);
+    const asg = model.teachers.map(() => []);
+    fixed.forEach((f, t) => f.forEach(i => { asg[t].push(i); cnt[i]++; }));
+    const order = [...Array(T).keys()].filter(t => quotas[t] > asg[t].length)
+      .map(t => ({ t, k: elig[t].length / Math.max(1, quotas[t]) + rand() * 0.5 }))
+      .sort((a, b) => a.k - b.k).map(o => o.t);
+    // round-robin: one unit per teacher per pass, scarcest first
+    let more = true;
+    while (more) {
+      more = false;
+      for (const t of order) {
+        if (asg[t].length >= quotas[t]) continue;
+        const usedDays = new Set(asg[t].map(i => model.slots[i].day));
+        let cand = elig[t].filter(i => !asg[t].includes(i) && !(rules.onePerDay && usedDays.has(model.slots[i].day)));
+        if (!cand.length) continue;
+        let m = Infinity; cand.forEach(i => m = Math.min(m, cnt[i]));
+        cand = cand.filter(i => cnt[i] === m);
+        const pick = cand[Math.floor(rand() * cand.length)];
+        asg[t].push(pick); cnt[pick]++; more = true;
+      }
+    }
+    // local search: move a ΓΡ to an emptier slot
+    let improved = true, guard = 0;
+    while (improved && guard++ < 200) {
+      improved = false;
+      for (let t = 0; t < T; t++) {
+        for (let k = fixed[t].length; k < asg[t].length; k++) {
+          const from = asg[t][k];
+          const days = new Set(asg[t].filter((_, j) => j !== k).map(i => model.slots[i].day));
+          for (const to of elig[t]) {
+            if (to === from || asg[t].includes(to)) continue;
+            if (rules.onePerDay && days.has(model.slots[to].day)) continue;
+            if (cnt[to] + 1 < cnt[from]) { cnt[from]--; cnt[to]++; asg[t][k] = to; improved = true; break; }
+          }
+        }
+      }
+    }
+    const sc = score(cnt);
+    if (!best || sc < best.sc) best = { sc, asg: asg.map(a => a.slice()), cnt: cnt.slice() };
+  }
+  const shortfall = model.teachers.map((t, i) => Math.max(0, quotas[i] - best.asg[i].length));
+  return { assign: best.asg, counts: best.cnt, shortfall, elig };
+}
+
+function stats(model, assign) {
+  const N = model.slots.length;
+  const perSlot = new Array(N).fill(0), free = new Array(N).fill(0);
+  model.teachers.forEach((t, ti) => {
+    if (t.staff) return;
+    assign[ti].forEach(i => perSlot[i]++);
+    const present = {};
+    t.cells.forEach((c, i) => { if (c === 'L') present[model.slots[i].day] = true; });
+    t.cells.forEach((c, i) => { if (c !== 'L' && present[model.slots[i].day]) free[i]++; });
+  });
+  const hours = model.teachers.map(t => t.cells.filter(c => c === 'L').length);
+  return { perSlot, free, hours };
+}
+
+// write results into an ExcelJS worksheet
+function writeSheet(ws, model, assign, quotas) {
+  const red = { name: 'Calibri', size: 11, bold: true, color: { argb: 'FFFF0000' } };
+  model.teachers.forEach((t, ti) => {
+    const set = new Set(assign[ti]);
+    model.slots.forEach((s, i) => {
+      if (t.cells[i] === 'L') return;
+      const cell = ws.getCell(t.row, s.col);
+      if (set.has(i)) { cell.value = GR; cell.font = Object.assign({}, cell.font || {}, red); }
+      else if (txt(cell.value) === GR) { cell.value = null; }
+    });
+  });
+  const st = stats(model, assign);
+  const L = model.lastCol, first = model.teachers[0].row, last = model.teachers[model.teachers.length - 1].row;
+  const fc = colName(model.firstCol), lc = colName(L);
+  const C = k => colName(L + k);
+  const head = { name: 'Calibri', size: 10, bold: true, color: { argb: 'FF1F3A5F' } };
+  const body = { name: 'Calibri', size: 10 };
+  const center = { horizontal: 'center', vertical: 'middle', wrapText: true };
+  const thin = { style: 'thin', color: { argb: 'FFB8C4D6' } };
+  const box = { top: thin, left: thin, bottom: thin, right: thin };
+  const shade = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFE8EEF6' } };
+  // column block AL..AP
+  const heads = ['ΓΡ', 'Στόχος', 'Διαφορά', 'Ώρες μαθ.', 'Σύνολο ωρών'];
+  try { ws.unMergeCells(`${C(1)}${model.dayRow}:${C(5)}${model.dayRow}`); } catch (e) {}
+  ws.mergeCells(`${C(1)}${model.dayRow}:${C(5)}${model.dayRow}`);
+  const tcell = ws.getCell(`${C(1)}${model.dayRow}`);
+  tcell.value = 'Στατιστικά ΓΡ (εκτός εκτύπωσης)'; tcell.font = head; tcell.alignment = center; tcell.fill = shade;
+  heads.forEach((h, k) => { const c = ws.getCell(model.perRow, L + 1 + k); c.value = h; c.font = head; c.alignment = center; c.fill = shade; c.border = box; ws.getColumn(L + 1 + k).width = k ? 9.5 : 7; });
+  model.teachers.forEach((t, ti) => {
+    const r = t.row;
+    const vals = t.staff ? [null, null, null, null, null] : [
+      { formula: `COUNTIF(${fc}${r}:${lc}${r},"ΓΡ")` },
+      quotas[ti],
+      { formula: `${C(1)}${r}-${C(2)}${r}` },
+      st.hours[ti],
+      { formula: `${C(1)}${r}+${C(4)}${r}` },
+    ];
+    vals.forEach((v, k) => { const c = ws.getCell(r, L + 1 + k); c.value = v; c.font = body; c.alignment = center; c.border = box; c.numFmt = k === 2 ? '+0;-0;0' : '0'; });
+  });
+  // totals row under the column block
+  const tr = model.statsRow;
+  [1, 2, 4, 5].forEach(k => { const c = ws.getCell(tr, L + k); c.value = { formula: `SUM(${C(k)}${first}:${C(k)}${last})` }; c.font = head; c.alignment = center; c.border = box; c.fill = shade; });
+  const dc = ws.getCell(tr, L + 3); dc.value = { formula: `${C(1)}${tr}-${C(2)}${tr}` }; dc.font = head; dc.alignment = center; dc.border = box; dc.fill = shade; dc.numFmt = '+0;-0;0';
+  // slot rows
+  const rows = [
+    ['ΓΡ ανά ώρα', model.slots.map(s => ({ formula: `COUNTIF(${colName(s.col)}${first}:${colName(s.col)}${last},"ΓΡ")` }))],
+    ['Παρόντες χωρίς μάθημα', st.free],
+  ];
+  rows.forEach(([label, vals], k) => {
+    const r = tr + k;
+    const lc0 = ws.getCell(r, 1); lc0.value = label; lc0.font = head; lc0.alignment = { horizontal: 'right', vertical: 'middle' };
+    model.slots.forEach((s, i) => { const c = ws.getCell(r, s.col); c.value = vals[i]; c.font = body; c.alignment = center; c.border = box; });
+  });
+  // per-day totals
+  const dr = tr + 2;
+  const ld = ws.getCell(dr, 1); ld.value = 'ΓΡ ανά ημέρα'; ld.font = head; ld.alignment = { horizontal: 'right', vertical: 'middle' };
+  const byDay = {};
+  model.slots.forEach(s => { (byDay[s.day] = byDay[s.day] || []).push(s.col); });
+  Object.values(byDay).forEach(cols => {
+    const a = colName(cols[0]), b = colName(cols[cols.length - 1]);
+    try { ws.unMergeCells(`${a}${dr}:${b}${dr}`); } catch (e) {}
+    ws.mergeCells(`${a}${dr}:${b}${dr}`);
+    const c = ws.getCell(`${a}${dr}`); c.value = { formula: `SUM(${a}${tr}:${b}${tr})` }; c.font = head; c.alignment = center; c.border = box; c.fill = shade;
+  });
+  // conditional formatting: replace old rules
+  ws.conditionalFormattings = [];
+  ws.addConditionalFormatting({ ref: `${C(3)}${first}:${C(3)}${last}`, rules: [
+    { type: 'cellIs', operator: 'lessThan', formulae: ['0'], priority: 1, style: { fill: { type: 'pattern', pattern: 'solid', bgColor: { argb: 'FFFFE0B2' } }, font: { color: { argb: 'FF9C4A00' }, bold: true } } },
+    { type: 'cellIs', operator: 'greaterThan', formulae: ['0'], priority: 2, style: { fill: { type: 'pattern', pattern: 'solid', bgColor: { argb: 'FFFFC7CE' } }, font: { color: { argb: 'FF9C0006' }, bold: true } } },
+  ] });
+  ws.addConditionalFormatting({ ref: `${fc}${tr}:${lc}${tr}`, rules: [
+    { type: 'cellIs', operator: 'equal', formulae: ['0'], priority: 3, style: { fill: { type: 'pattern', pattern: 'solid', bgColor: { argb: 'FFFFC7CE' } }, font: { color: { argb: 'FF9C0006' } } } },
+    { type: 'cellIs', operator: 'greaterThan', formulae: ['0'], priority: 4, style: { fill: { type: 'pattern', pattern: 'solid', bgColor: { argb: 'FFDDF0DD' } } } },
+  ] });
+  ws.addConditionalFormatting({ ref: `${C(1)}${first}:${C(1)}${last}`, rules: [
+    { type: 'dataBar', priority: 5, cfvo: [{ type: 'num', value: 0 }, { type: 'max' }], color: { argb: 'FFE57373' } },
+  ] });
+}
+
+if (typeof module !== 'undefined') module.exports = { parseSheet, eligible, solve, stats, writeSheet, colName, GR, DAYS };
+
+</script>
+<script>
+const $ = id => document.getElementById(id);
+const DAYS_SHORT = ['Δευ','Τρί','Τετ','Πέμ','Παρ'];
+const S = { buf:null, fname:'', model:null, quotas:[], assign:[], locked:[], filter:'all', hl:-1 };
+const store = {
+  get(){ try { return JSON.parse(localStorage.getItem('gr-settings-v1')) || {}; } catch(e){ return {}; } },
+  set(v){ try { localStorage.setItem('gr-settings-v1', JSON.stringify(v)); } catch(e){} }
+};
+let saved = store.get();
+const ruleIds = { noLastPeriod:'r-last', onePerDay:'r-day', onlyTeachingDays:'r-present', onlyBetween:'r-between', keepExisting:'r-keep' };
+if (saved.rules) for (const k in ruleIds) if (k in saved.rules) $(ruleIds[k]).checked = !!saved.rules[k];
+const rules = () => { const r = {}; for (const k in ruleIds) r[k] = $(ruleIds[k]).checked; return r; };
+function persist(){
+  const q = Object.assign({}, saved.quotas || {});
+  if (S.model) S.model.teachers.forEach((t,i) => { if (!t.staff) q[t.name] = S.quotas[i]; });
+  saved = { quotas:q, rules:rules() }; store.set(saved);
+}
+function toast(msg){ const t = $('toast'); t.textContent = msg; t.hidden = false; clearTimeout(toast.h); toast.h = setTimeout(()=>t.hidden = true, 3200); }
+function showError(msg){ const e = $('error'); e.textContent = msg; e.hidden = !msg; }
+
+async function loadBuffer(buf, name){
+  showError('');
+  try {
+    const wb = new ExcelJS.Workbook(); await wb.xlsx.load(buf.slice(0));
+    const m = parseSheet(wb.worksheets[0]);
+    S.buf = buf; S.fname = name; S.model = m; S.hl = -1;
+    const q = (saved.quotas) || {};
+    S.quotas = m.teachers.map(t => t.staff ? 0 : (t.name in q ? q[t.name] : 1));
+    S.locked = m.teachers.map(() => []);
+    $('fname').textContent = name;
+    $('school').textContent = m.title || 'Ωρολόγιο πρόγραμμα';
+    $('empty').hidden = true; $('mainview').hidden = false; ['run','save'].forEach(id => $(id).disabled = false);
+    run();
+  } catch(e) { showError('Δεν μπόρεσα να διαβάσω το αρχείο: ' + (e.message || e) + ' Βεβαιώσου ότι είναι .xlsx με εκπαιδευτικούς στη στήλη Α και τις ημέρες στην επικεφαλίδα.'); }
+}
+function fixedSets(){
+  const m = S.model, r = rules();
+  return m.teachers.map((t,ti) => {
+    const f = new Set(S.locked[ti]);
+    if (r.keepExisting) t.cells.forEach((c,i) => { if (c === 'G') f.add(i); });
+    return [...f];
+  });
+}
+function run(){
+  if (!S.model) return;
+  const res = solve(S.model, S.quotas, rules(), { fixed: fixedSets(), restarts: 80, seed: (Math.random()*1e9)|0 });
+  S.assign = res.assign; S.elig = res.elig;
+  render();
+}
+function eligNow(){ return S.model.teachers.map(t => eligible(S.model, t, rules())); }
+
+function render(){ renderSummary(); renderRoster(); renderGrid(); }
+function counts(){
+  const m = S.model, cnt = new Array(m.slots.length).fill(0), usable = new Array(m.slots.length).fill(false);
+  S.assign.forEach(a => a.forEach(i => cnt[i]++));
+  S.elig.forEach((e,t) => { if (S.quotas[t] > 0) e.forEach(i => usable[i] = true); });
+  return { cnt, usable };
+}
+function renderSummary(){
+  const m = S.model, { cnt, usable } = counts();
+  const total = S.assign.reduce((a,b) => a + b.length, 0), target = S.quotas.reduce((a,b) => a + b, 0);
+  const uses = cnt.filter((_,i) => usable[i]);
+  const empty = uses.filter(c => !c).length;
+  const short = m.teachers.filter((t,i) => S.assign[i].length < S.quotas[i]).length;
+  const ex = m.teachers.filter((t,i) => !t.staff && S.quotas[i] === 0).length;
+  const more = S.quotas.filter(q => q > 1).length;
+  const mn = uses.length ? Math.min(...uses) : 0, mx = uses.length ? Math.max(...uses) : 0;
+  $('summary').innerHTML = `
+    <span class="chip ${total === target ? 'good' : 'warn'}"><b>${total}</b> / ${target} ΓΡ</span>
+    <span class="chip ${empty ? 'bad' : 'good'}"><b>${empty}</b> ${empty === 1 ? 'ώρα' : 'ώρες'} χωρίς ΓΡ</span>
+    <span class="chip">ανά ώρα <b>${mn}–${mx}</b></span>
+    <span class="chip">εξαιρέσεις <b>${ex}</b></span>
+    <span class="chip">επιβάρυνση <b>${more}</b></span>
+    ${short ? `<span class="chip warn"><b>${short}</b> δεν χωράνε όλα τα ΓΡ τους</span>` : ''}`;
+}
+function renderRoster(){
+  const m = S.model, el = $('tlist');
+  el.innerHTML = '';
+  m.teachers.forEach((t,i) => {
+    if (t.staff) return;
+    const q = S.quotas[i], got = S.assign[i].length, sh = q - got;
+    if (S.filter === 'ex' && q !== 0) return;
+    if (S.filter === 'more' && q < 2) return;
+    if (S.filter === 'short' && sh <= 0) return;
+    const hours = t.cells.filter(c => c === 'L').length;
+    const li = document.createElement('li');
+    li.className = 't' + (S.hl === i ? ' hl' : '');
+    li.innerHTML = `<span class="nm" data-i="${i}" title="Επισήμανση στο πρόγραμμα">${t.name}</span>
+      <div class="step"><button type="button" data-d="-1" data-i="${i}" aria-label="Λιγότερα ΓΡ για ${t.name}">−</button>
+      <output class="${q === 0 ? 'zero' : q > 1 ? 'up' : ''}">${q}</output>
+      <button type="button" data-d="1" data-i="${i}" aria-label="Περισσότερα ΓΡ για ${t.name}">+</button></div>
+      <span class="meta"><span>${t.spec}</span><span>${hours} ώρ. μαθ.</span><span>${S.elig[i].length} κατάλληλα κενά</span>
+      ${q === 0 ? '<span class="tag ex">εξαίρεση</span>' : ''}${q > 1 ? `<span class="tag more">επιβάρυνση ×${q}</span>` : ''}
+      ${sh > 0 ? `<span class="tag short">λείπ${sh === 1 ? 'ει' : 'ουν'} ${sh}</span>` : ''}</span>`;
+    el.appendChild(li);
+  });
+  if (!el.children.length) el.innerHTML = '<li class="t"><span class="meta">Κανένας εκπαιδευτικός σε αυτή την κατηγορία.</span></li>';
+}
+function renderGrid(){
+  const m = S.model, { cnt, usable } = counts();
+  const byDay = {}; m.slots.forEach((s,i) => (byDay[s.day] = byDay[s.day] || []).push(i));
+  let h = '<thead><tr><th class="nmcol" rowspan="2">Εκπαιδευτικός</th>';
+  Object.keys(byDay).forEach(d => h += `<th class="day dstart" colspan="${byDay[d].length}">${DAYS[d]}</th>`);
+  h += '</tr><tr>';
+  m.slots.forEach((s,i) => h += `<th class="${i && m.slots[i-1].day !== s.day ? 'dstart' : (i===0?'dstart':'')}">${s.period}</th>`);
+  h += '</tr></thead><tbody>';
+  m.teachers.forEach((t,ti) => {
+    const set = new Set(S.assign[ti]), lock = new Set(S.locked[ti]), el = new Set(S.elig[ti]);
+    h += `<tr class="${t.staff ? 'staff' : ''}${S.hl === ti ? ' hl' : ''}"><td class="nmcol" title="${t.name} · ${t.spec}">${t.name}</td>`;
+    m.slots.forEach((s,i) => {
+      const ds = (i === 0 || m.slots[i-1].day !== s.day) ? ' dstart' : '';
+      if (t.cells[i] === 'L') { h += `<td class="c L${ds}">${t.staff ? '' : (t.labels[i] || '').slice(0,4)}</td>`; return; }
+      if (set.has(i)) { h += `<td class="c G${lock.has(i) ? ' lock' : ''}${ds}" data-t="${ti}" data-s="${i}" title="${t.name} · ${DAYS[s.day]} ${s.period}η · κλικ για αφαίρεση">ΓΡ</td>`; return; }
+      const ok = !t.staff && el.has(i);
+      h += `<td class="c F ${ok ? 'ok' : 'no'}${ds}" ${ok ? `data-t="${ti}" data-s="${i}" title="${t.name} · ${DAYS[s.day]} ${s.period}η · κλικ για ΓΡ"` : ''}></td>`;
+    });
+    h += '</tr>';
+  });
+  h += '</tbody><tfoot><tr><td class="nmcol">ΓΡ ανά ώρα</td>';
+  m.slots.forEach((s,i) => {
+    const ds = (i === 0 || m.slots[i-1].day !== s.day) ? ' dstart' : '';
+    const cls = !usable[i] ? 'covX' : cnt[i] === 0 ? 'cov0' : cnt[i] === 1 ? 'cov1' : 'covN';
+    h += `<td class="c ${cls}${ds}">${usable[i] || cnt[i] ? cnt[i] : '–'}</td>`;
+  });
+  h += '</tr></tfoot>';
+  $('grid').innerHTML = h;
+}
+
+// events
+$('tlist').addEventListener('click', e => {
+  const b = e.target.closest('button[data-d]');
+  if (b) {
+    const i = +b.dataset.i; S.quotas[i] = Math.max(0, Math.min(5, S.quotas[i] + +b.dataset.d));
+    // drop locks beyond the new quota
+    if (S.locked[i].length > S.quotas[i]) S.locked[i] = S.locked[i].slice(0, S.quotas[i]);
+    persist(); run(); return;
+  }
+  const n = e.target.closest('.nm');
+  if (n) { const i = +n.dataset.i; S.hl = S.hl === i ? -1 : i; renderRoster(); renderGrid();
+    const row = $('grid').tBodies[0].rows[i]; if (row && S.hl === i) row.scrollIntoView({ block:'nearest' }); }
+});
+$('grid').addEventListener('click', e => {
+  const td = e.target.closest('td[data-t]'); if (!td) return;
+  const t = +td.dataset.t, s = +td.dataset.s, m = S.model;
+  const a = S.assign[t];
+  if (a.includes(s)) {
+    S.assign[t] = a.filter(x => x !== s); S.locked[t] = S.locked[t].filter(x => x !== s);
+    if (S.quotas[t] > S.assign[t].length) { /* keep quota, user can rerun */ }
+  } else {
+    if (rules().onePerDay) { // move: replace same-day ΓΡ if any
+      const sameDay = a.find(x => m.slots[x].day === m.slots[s].day);
+      if (sameDay != null) { S.assign[t] = a.filter(x => x !== sameDay); S.locked[t] = S.locked[t].filter(x => x !== sameDay); }
+    }
+    if (S.assign[t].length >= S.quotas[t] && S.quotas[t] > 0) { // move the ΓΡ instead of adding one
+      const drop = S.assign[t].find(x => !S.locked[t].includes(x)) ?? S.assign[t][0];
+      S.assign[t] = S.assign[t].filter(x => x !== drop); S.locked[t] = S.locked[t].filter(x => x !== drop);
+    }
+    if (S.quotas[t] === 0) { S.quotas[t] = 1; persist(); }
+    S.assign[t].push(s); S.locked[t].push(s);
+  }
+  render();
+});
+$('run').addEventListener('click', () => run());
+document.querySelectorAll('.rules input').forEach(i => i.addEventListener('change', () => { persist(); run(); }));
+document.querySelectorAll('.seg button').forEach(b => b.addEventListener('click', () => {
+  S.filter = b.dataset.f; document.querySelectorAll('.seg button').forEach(x => x.setAttribute('aria-pressed', x === b)); renderRoster();
+}));
+$('file').addEventListener('change', async e => { const f = e.target.files[0]; if (f) loadBuffer(await f.arrayBuffer(), f.name); e.target.value = ''; });
+const drop = $('drop');
+['dragover','dragenter'].forEach(ev => drop.addEventListener(ev, e => { e.preventDefault(); drop.classList.add('over'); }));
+['dragleave','drop'].forEach(ev => drop.addEventListener(ev, e => { e.preventDefault(); if (ev === 'dragleave' && drop.contains(e.relatedTarget)) return; drop.classList.remove('over'); }));
+drop.addEventListener('drop', async e => { const f = e.dataTransfer.files[0]; if (f && /\.xlsx$/i.test(f.name)) loadBuffer(await f.arrayBuffer(), f.name); else if (f) showError('Χρειάζομαι αρχείο .xlsx.'); });
+
+$('save').addEventListener('click', async () => {
+  if (!S.model) return;
+  const btn = $('save'); btn.disabled = true;
+  try {
+    const wb = new ExcelJS.Workbook(); await wb.xlsx.load(S.buf.slice(0));
+    writeSheet(wb.worksheets[0], S.model, S.assign, S.quotas);
+    const out = await wb.xlsx.writeBuffer();
+    const name = S.fname.replace(/\.xlsx$/i, '') + '_ΓΡ.xlsx';
+    const blob = new Blob([out], { type:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+    const url = URL.createObjectURL(blob), a = document.createElement('a');
+    a.href = url; a.download = name; document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 4000);
+    toast('Κατέβηκε: ' + name);
+  } catch(e) {
+    showError('Η αποθήκευση απέτυχε: ' + (e.message || e.code || e));
+  } finally { btn.disabled = false; }
+});
+
+['run','save'].forEach(id => $(id).disabled = true);
+$('file2').addEventListener('change', async e => { const f = e.target.files[0]; if (f) loadBuffer(await f.arrayBuffer(), f.name); e.target.value = ''; });
+let deferred = null;
+window.addEventListener('beforeinstallprompt', e => { e.preventDefault(); deferred = e; $('install').hidden = false; });
+$('install').addEventListener('click', async () => { if (!deferred) return; deferred.prompt(); await deferred.userChoice; deferred = null; $('install').hidden = true; });
+if ('serviceWorker' in navigator) window.addEventListener('load', () => navigator.serviceWorker.register('sw.js').catch(() => {}));
+</script>
+</body>
+</html>
