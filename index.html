@@ -167,6 +167,7 @@ td.covX{color:var(--muted);font-weight:400}
     <section>
       <p class="label">Κανόνες</p>
       <div class="rules">
+        <label><input type="checkbox" id="r-slot" checked> Το πολύ ένα ΓΡ την ίδια ώρα</label>
         <label><input type="checkbox" id="r-last" checked> Όχι ΓΡ στην τελευταία ώρα της ημέρας (7η)</label>
         <label><input type="checkbox" id="r-day" checked> Το πολύ ένα ΓΡ τη μέρα ανά εκπαιδευτικό</label>
         <label><input type="checkbox" id="r-present" checked> Μόνο σε μέρα που ο εκπαιδευτικός έχει μάθημα</label>
@@ -394,6 +395,58 @@ function solve(model, quotas, rules, opts = {}) {
   return { assign: best.asg, counts: best.cnt, shortfall, elig };
 }
 
+// One ΓΡ per hour: exact assignment by augmenting paths (max flow).
+// Teachers are served in priority order, so when hours run out, those last in line go without.
+function solveOnePerSlot(model, quotas, rules, opts = {}) {
+  const N = model.slots.length, T = model.teachers.length;
+  const elig = model.teachers.map(t => eligible(model, t, rules));
+  const rand = rng(opts.seed || Date.now());
+  const fixed = opts.fixed || model.teachers.map(() => []);
+  const owner = new Array(N).fill(-1);            // slot -> teacher
+  const asg = model.teachers.map(() => []);
+  const blocked = new Set();                       // slots taken by fixed ΓΡ
+  fixed.forEach((f, t) => f.forEach(i => { asg[t].push(i); if (owner[i] < 0) owner[i] = t; blocked.add(i); }));
+  const shuffle = a => { for (let i = a.length - 1; i > 0; i--) { const j = Math.floor(rand() * (i + 1)); [a[i], a[j]] = [a[j], a[i]]; } return a; };
+  const dayOf = i => model.slots[i].day;
+  const canTake = (t, i, except) => {
+    if (blocked.has(i) && owner[i] !== t) return false;
+    if (!rules.onePerDay) return true;
+    return !asg[t].some(x => x !== except && dayOf(x) === dayOf(i));
+  };
+  // try to give teacher t one more slot, moving other teachers' ΓΡ along an augmenting path
+  function augment(t0) {
+    const seen = new Set();
+    const order = t => shuffle(elig[t].filter(i => !asg[t].includes(i)));
+    function dfs(t, depth) {
+      if (depth > 60) return false;
+      for (const i of order(t)) {
+        if (seen.has(i) || blocked.has(i)) continue;
+        // same-day conflict: t could swap its own ΓΡ of that day, keep it simple and skip
+        if (!canTake(t, i)) continue;
+        seen.add(i);
+        const o = owner[i];
+        if (o < 0) { owner[i] = t; asg[t].push(i); return true; }
+        // ask current owner o to move elsewhere
+        const k = asg[o].indexOf(i);
+        asg[o].splice(k, 1); owner[i] = -1;
+        if (dfs(o, depth + 1)) { owner[i] = t; asg[t].push(i); return true; }
+        asg[o].splice(k, 0, i); owner[i] = o;
+      }
+      return false;
+    }
+    return dfs(t0, 0);
+  }
+  const hours = model.teachers.map(t => t.cells.filter(c => c === 'L').length);
+  const prio = shuffle([...Array(T).keys()]).sort((a, b) => hours[a] - hours[b]);
+  // phase 1: one each; phase 2+: extra load
+  const maxQ = Math.max(0, ...quotas);
+  for (let round = 1; round <= maxQ; round++)
+    for (const t of prio) if (quotas[t] >= round && asg[t].length < round) augment(t);
+  const cnt = new Array(N).fill(0); asg.forEach(a => a.forEach(i => cnt[i]++));
+  const shortfall = model.teachers.map((t, i) => Math.max(0, quotas[i] - asg[i].length));
+  return { assign: asg, counts: cnt, shortfall, elig };
+}
+
 function stats(model, assign) {
   const N = model.slots.length;
   const perSlot = new Array(N).fill(0), free = new Array(N).fill(0);
@@ -491,7 +544,7 @@ function writeSheet(ws, model, assign, quotas) {
   ] });
 }
 
-if (typeof module !== 'undefined') module.exports = { parseSheet, eligible, solve, stats, writeSheet, colName, GR, DAYS };
+if (typeof module !== 'undefined') module.exports = { parseSheet, eligible, solve, solveOnePerSlot, stats, writeSheet, colName, GR, DAYS };
 
 </script>
 <script>
@@ -503,7 +556,7 @@ const store = {
   set(v){ try { localStorage.setItem('gr-settings-v1', JSON.stringify(v)); } catch(e){} }
 };
 let saved = store.get();
-const ruleIds = { noLastPeriod:'r-last', onePerDay:'r-day', onlyTeachingDays:'r-present', onlyBetween:'r-between', keepExisting:'r-keep' };
+const ruleIds = { onePerSlot:'r-slot', noLastPeriod:'r-last', onePerDay:'r-day', onlyTeachingDays:'r-present', onlyBetween:'r-between', keepExisting:'r-keep' };
 if (saved.rules) for (const k in ruleIds) if (k in saved.rules) $(ruleIds[k]).checked = !!saved.rules[k];
 const rules = () => { const r = {}; for (const k in ruleIds) r[k] = $(ruleIds[k]).checked; return r; };
 function persist(){
@@ -539,7 +592,8 @@ function fixedSets(){
 }
 function run(){
   if (!S.model) return;
-  const res = solve(S.model, S.quotas, rules(), { fixed: fixedSets(), restarts: 80, seed: (Math.random()*1e9)|0 });
+  const r = rules(), o = { fixed: fixedSets(), restarts: 80, seed: (Math.random()*1e9)|0 };
+  const res = r.onePerSlot ? solveOnePerSlot(S.model, S.quotas, r, o) : solve(S.model, S.quotas, r, o);
   S.assign = res.assign; S.elig = res.elig;
   render();
 }
@@ -560,6 +614,7 @@ function renderSummary(){
   const short = m.teachers.filter((t,i) => S.assign[i].length < S.quotas[i]).length;
   const ex = m.teachers.filter((t,i) => !t.staff && S.quotas[i] === 0).length;
   const more = S.quotas.filter(q => q > 1).length;
+  const dup = cnt.filter(c => c > 1).length;
   const mn = uses.length ? Math.min(...uses) : 0, mx = uses.length ? Math.max(...uses) : 0;
   $('summary').innerHTML = `
     <span class="chip ${total === target ? 'good' : 'warn'}"><b>${total}</b> / ${target} ΓΡ</span>
@@ -567,7 +622,8 @@ function renderSummary(){
     <span class="chip">ανά ώρα <b>${mn}–${mx}</b></span>
     <span class="chip">εξαιρέσεις <b>${ex}</b></span>
     <span class="chip">επιβάρυνση <b>${more}</b></span>
-    ${short ? `<span class="chip warn"><b>${short}</b> δεν χωράνε όλα τα ΓΡ τους</span>` : ''}`;
+    ${dup ? `<span class="chip warn"><b>${dup}</b> ${dup === 1 ? 'ώρα' : 'ώρες'} με 2+ ΓΡ</span>` : ''}
+    ${short ? `<span class="chip warn"><b>${short}</b> χωρίς όλα τα ΓΡ τους (δες «Προβλήματα»)</span>` : ''}`;
 }
 function renderRoster(){
   const m = S.model, el = $('tlist');
@@ -652,6 +708,7 @@ $('grid').addEventListener('click', e => {
       const drop = S.assign[t].find(x => !S.locked[t].includes(x)) ?? S.assign[t][0];
       S.assign[t] = S.assign[t].filter(x => x !== drop); S.locked[t] = S.locked[t].filter(x => x !== drop);
     }
+    if (rules().onePerSlot) S.assign.forEach((b, o) => { if (o !== t && b.includes(s)) { S.assign[o] = b.filter(x => x !== s); S.locked[o] = S.locked[o].filter(x => x !== s); } });
     if (S.quotas[t] === 0) { S.quotas[t] = 1; persist(); }
     S.assign[t].push(s); S.locked[t].push(s);
   }
