@@ -17,7 +17,7 @@
 /* Layout: control strip on top, teacher roster (left) beside the weekly grid (right); stacks on phones. */
 :root{
   --bg:#f4f6f9; --panel:#ffffff; --ink:#1b2531; --muted:#5d6979; --line:#dbe1e9;
-  --lesson:#eaeef4; --lesson-ink:#7a8696;
+  --grey:#b9c0ca; --lesson:#eaeef4; --lesson-ink:#1b2531;
   --gr:#c62828; --gr-soft:#fdeaea; --gr-ink:#ffffff;
   --ok:#2e7d4f; --ok-soft:#e3f2e8; --warn:#a85d00; --warn-soft:#fff1dc;
   --focus:#2f5fa7;
@@ -26,12 +26,12 @@
 }
 @media (prefers-color-scheme: dark){:root:not([data-theme="light"]){
   --bg:#12171e; --panel:#1a212b; --ink:#e6ebf2; --muted:#9aa6b6; --line:#2c3644;
-  --lesson:#222b37; --lesson-ink:#8090a3;
+  --grey:#4a5462; --lesson:#222b37; --lesson-ink:#e6ebf2;
   --gr:#ef5350; --gr-soft:#3a1f22; --gr-ink:#ffffff;
   --ok:#5cc28a; --ok-soft:#183025; --warn:#f0a64a; --warn-soft:#33261a; --focus:#8ab4f8; color-scheme:dark}}
 :root[data-theme="dark"]{
   --bg:#12171e; --panel:#1a212b; --ink:#e6ebf2; --muted:#9aa6b6; --line:#2c3644;
-  --lesson:#222b37; --lesson-ink:#8090a3;
+  --grey:#4a5462; --lesson:#222b37; --lesson-ink:#e6ebf2;
   --gr:#ef5350; --gr-soft:#3a1f22; --gr-ink:#ffffff;
   --ok:#5cc28a; --ok-soft:#183025; --warn:#f0a64a; --warn-soft:#33261a; --focus:#8ab4f8; color-scheme:dark}
 *{box-sizing:border-box}
@@ -111,6 +111,7 @@ td.L{background:var(--lesson);color:var(--lesson-ink);font-size:.68rem}
 td.F.ok{cursor:pointer}
 td.F.ok:hover{background:var(--gr-soft)}
 td.F.no{background:repeating-linear-gradient(135deg,transparent 0 4px,var(--lesson) 4px 5px)}
+td.X{background:var(--grey);color:var(--lesson-ink);font-size:.68rem}
 td.G{background:var(--gr);color:var(--gr-ink);font-weight:700;cursor:pointer}
 td.G.lock::after{content:"";position:absolute;top:3px;right:3px;width:5px;height:5px;border-radius:50%;background:var(--gr-ink)}
 tr.staff td.nmcol{color:var(--muted)}
@@ -205,6 +206,7 @@ td.covX{color:var(--muted);font-weight:400}
         <div class="legend">
           <span><i style="background:var(--gr)"></i>ΓΡ</span>
           <span><i style="background:var(--lesson)"></i>Μάθημα</span>
+          <span><i style="background:var(--grey)"></i>Γκρι: εκτός όλη τη μέρα</span>
           <span><i style="background:repeating-linear-gradient(135deg,transparent 0 4px,var(--lesson) 4px 5px)"></i>Κενό εκτός κανόνων</span>
           <span>Κλικ σε κενό: βάζεις ΓΡ (κλειδώνει) · κλικ σε ΓΡ: το βγάζεις</span>
         </div>
@@ -236,6 +238,24 @@ function txt(v) {
   return String(v).trim();
 }
 const norm = s => s.replace(/\s+/g, ' ').trim();
+
+// A grey fill marks a teacher as unavailable (e.g. at another school) that day.
+function isGrey(fill) {
+  if (!fill || fill.type !== 'pattern' || !fill.pattern || fill.pattern === 'none') return false;
+  const c = fill.fgColor || {};
+  if (c.theme != null) {
+    const tint = c.tint || 0;
+    if (c.theme === 0 || c.theme === 2) return tint < -0.04;          // background shades
+    if (c.theme === 1 || c.theme === 3) return tint > 0.3;            // text colour lightened
+    return false;
+  }
+  if (c.argb) {
+    const h = c.argb.slice(-6), r = parseInt(h.slice(0, 2), 16), g = parseInt(h.slice(2, 4), 16), b = parseInt(h.slice(4, 6), 16);
+    return Math.max(r, g, b) - Math.min(r, g, b) <= 18 && r < 0xF2 && r > 0x50;
+  }
+  if (c.indexed != null) return [22, 23, 55].includes(c.indexed);
+  return false;
+}
 
 function parseSheet(ws) {
   // locate header row with day names
@@ -274,11 +294,14 @@ function parseSheet(ws) {
     const cells = slots.map(s => {
       const m = mergeAt(r, s.col);
       const v = m ? txt(ws.getCell(m.r1, m.c1).value) : txt(ws.getCell(r, s.col).value);
-      return { v, merged: !!m, wide: m ? (m.c2 - m.c1 + 1) : 1 };
+      const cell = m ? ws.getCell(m.r1, m.c1) : ws.getCell(r, s.col);
+      return { v, merged: !!m, wide: m ? (m.c2 - m.c1 + 1) : 1, grey: isGrey(cell.fill) };
     });
+    const blockedDays = [...new Set(cells.map((c, i) => c.grey ? slots[i].day : null).filter(d => d != null))];
     const staff = cells.some(c => c.wide >= 8); // e.g. ΝΟΣΗΛΕΥΤΗΣ across the week
     teachers.push({
-      row: r, name, spec, staff,
+      row: r, name, spec, staff, blockedDays,
+      grey: cells.map(c => c.grey),
       cells: cells.map(c => c.v === GR && !c.merged ? 'G' : (c.v ? 'L' : 'F')),
       labels: cells.map(c => (c.v === GR ? '' : c.v)),
     });
@@ -301,6 +324,7 @@ function eligible(model, t, rules) {
   model.slots.forEach((s, i) => { if (t.cells[i] === 'L') (lessonsByDay[s.day] = lessonsByDay[s.day] || []).push(s.period); });
   model.slots.forEach((s, i) => {
     if (t.cells[i] === 'L') return;
+    if (t.blockedDays.includes(s.day)) return;
     if (rules.noLastPeriod && s.period === model.maxPeriod[s.day]) return;
     const ls = lessonsByDay[s.day] || [];
     if (rules.onlyBetween && !(ls.some(p => p < s.period) && ls.some(p => p > s.period))) return;
@@ -378,7 +402,7 @@ function stats(model, assign) {
     assign[ti].forEach(i => perSlot[i]++);
     const present = {};
     t.cells.forEach((c, i) => { if (c === 'L') present[model.slots[i].day] = true; });
-    t.cells.forEach((c, i) => { if (c !== 'L' && present[model.slots[i].day]) free[i]++; });
+    t.cells.forEach((c, i) => { const d = model.slots[i].day; if (c !== 'L' && present[d] && !t.blockedDays.includes(d)) free[i]++; });
   });
   const hours = model.teachers.map(t => t.cells.filter(c => c === 'L').length);
   return { perSlot, free, hours };
@@ -387,21 +411,24 @@ function stats(model, assign) {
 // write results into an ExcelJS worksheet
 function writeSheet(ws, model, assign, quotas) {
   const red = { name: 'Calibri', size: 11, bold: true, color: { argb: 'FFFF0000' } };
+  // ExcelJS shares style objects between cells: give each cell its own style before changing the font
+  const setFont = (cell, f) => { cell.style = Object.assign({}, cell.style, { font: f }); };
+  const black = f => Object.assign({}, f || {}, { bold: false, color: { argb: 'FF000000' } });
   model.teachers.forEach((t, ti) => {
     const set = new Set(assign[ti]);
     model.slots.forEach((s, i) => {
-      if (t.cells[i] === 'L') return;
       const cell = ws.getCell(t.row, s.col);
-      if (set.has(i)) { cell.value = GR; cell.font = Object.assign({}, cell.font || {}, red); }
-      else if (txt(cell.value) === GR) { cell.value = null; }
+      if (t.cells[i] !== 'L' && set.has(i)) { cell.value = GR; setFont(cell, Object.assign({}, cell.font || {}, red)); return; }
+      if (t.cells[i] !== 'L' && txt(cell.value) === GR) cell.value = null;
+      setFont(cell, black(cell.font)); // only ΓΡ stays red & bold
     });
   });
   const st = stats(model, assign);
   const L = model.lastCol, first = model.teachers[0].row, last = model.teachers[model.teachers.length - 1].row;
   const fc = colName(model.firstCol), lc = colName(L);
   const C = k => colName(L + k);
-  const head = { name: 'Calibri', size: 10, bold: true, color: { argb: 'FF1F3A5F' } };
-  const body = { name: 'Calibri', size: 10 };
+  const head = { name: 'Calibri', size: 10, bold: false, color: { argb: 'FF000000' } };
+  const body = { name: 'Calibri', size: 10, color: { argb: 'FF000000' } };
   const center = { horizontal: 'center', vertical: 'middle', wrapText: true };
   const thin = { style: 'thin', color: { argb: 'FFB8C4D6' } };
   const box = { top: thin, left: thin, bottom: thin, right: thin };
@@ -452,15 +479,15 @@ function writeSheet(ws, model, assign, quotas) {
   // conditional formatting: replace old rules
   ws.conditionalFormattings = [];
   ws.addConditionalFormatting({ ref: `${C(3)}${first}:${C(3)}${last}`, rules: [
-    { type: 'cellIs', operator: 'lessThan', formulae: ['0'], priority: 1, style: { fill: { type: 'pattern', pattern: 'solid', bgColor: { argb: 'FFFFE0B2' } }, font: { color: { argb: 'FF9C4A00' }, bold: true } } },
-    { type: 'cellIs', operator: 'greaterThan', formulae: ['0'], priority: 2, style: { fill: { type: 'pattern', pattern: 'solid', bgColor: { argb: 'FFFFC7CE' } }, font: { color: { argb: 'FF9C0006' }, bold: true } } },
+    { type: 'cellIs', operator: 'lessThan', formulae: ['0'], priority: 1, style: { fill: { type: 'pattern', pattern: 'solid', bgColor: { argb: 'FFFFE0B2' } } } },
+    { type: 'cellIs', operator: 'greaterThan', formulae: ['0'], priority: 2, style: { fill: { type: 'pattern', pattern: 'solid', bgColor: { argb: 'FFFFC7CE' } } } },
   ] });
   ws.addConditionalFormatting({ ref: `${fc}${tr}:${lc}${tr}`, rules: [
-    { type: 'cellIs', operator: 'equal', formulae: ['0'], priority: 3, style: { fill: { type: 'pattern', pattern: 'solid', bgColor: { argb: 'FFFFC7CE' } }, font: { color: { argb: 'FF9C0006' } } } },
+    { type: 'cellIs', operator: 'equal', formulae: ['0'], priority: 3, style: { fill: { type: 'pattern', pattern: 'solid', bgColor: { argb: 'FFFFC7CE' } } } },
     { type: 'cellIs', operator: 'greaterThan', formulae: ['0'], priority: 4, style: { fill: { type: 'pattern', pattern: 'solid', bgColor: { argb: 'FFDDF0DD' } } } },
   ] });
   ws.addConditionalFormatting({ ref: `${C(1)}${first}:${C(1)}${last}`, rules: [
-    { type: 'dataBar', priority: 5, cfvo: [{ type: 'num', value: 0 }, { type: 'max' }], color: { argb: 'FFE57373' } },
+    { type: 'dataBar', priority: 5, cfvo: [{ type: 'num', value: 0 }, { type: 'max' }], color: { argb: 'FFBFC7D2' } },
   ] });
 }
 
@@ -558,7 +585,7 @@ function renderRoster(){
       <div class="step"><button type="button" data-d="-1" data-i="${i}" aria-label="Λιγότερα ΓΡ για ${t.name}">−</button>
       <output class="${q === 0 ? 'zero' : q > 1 ? 'up' : ''}">${q}</output>
       <button type="button" data-d="1" data-i="${i}" aria-label="Περισσότερα ΓΡ για ${t.name}">+</button></div>
-      <span class="meta"><span>${t.spec}</span><span>${hours} ώρ. μαθ.</span><span>${S.elig[i].length} κατάλληλα κενά</span>
+      <span class="meta"><span>${t.spec}</span><span>${hours} ώρ. μαθ.</span><span>${S.elig[i].length} κατάλληλα κενά</span>${t.blockedDays.length ? `<span>εκτός: ${t.blockedDays.map(d => DAYS_SHORT[d]).join(', ')}</span>` : ''}
       ${q === 0 ? '<span class="tag ex">εξαίρεση</span>' : ''}${q > 1 ? `<span class="tag more">επιβάρυνση ×${q}</span>` : ''}
       ${sh > 0 ? `<span class="tag short">λείπ${sh === 1 ? 'ει' : 'ουν'} ${sh}</span>` : ''}</span>`;
     el.appendChild(li);
@@ -578,6 +605,7 @@ function renderGrid(){
     h += `<tr class="${t.staff ? 'staff' : ''}${S.hl === ti ? ' hl' : ''}"><td class="nmcol" title="${t.name} · ${t.spec}">${t.name}</td>`;
     m.slots.forEach((s,i) => {
       const ds = (i === 0 || m.slots[i-1].day !== s.day) ? ' dstart' : '';
+      if (t.grey && t.grey[i]) { h += `<td class="c X${ds}" title="${t.name} · ${DAYS[s.day]}: γκρι, εξαιρείται όλη η μέρα">${t.cells[i] === 'L' ? (t.labels[i] || '').slice(0,4) : ''}</td>`; return; }
       if (t.cells[i] === 'L') { h += `<td class="c L${ds}">${t.staff ? '' : (t.labels[i] || '').slice(0,4)}</td>`; return; }
       if (set.has(i)) { h += `<td class="c G${lock.has(i) ? ' lock' : ''}${ds}" data-t="${ti}" data-s="${i}" title="${t.name} · ${DAYS[s.day]} ${s.period}η · κλικ για αφαίρεση">ΓΡ</td>`; return; }
       const ok = !t.staff && el.has(i);
