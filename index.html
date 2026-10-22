@@ -115,6 +115,15 @@ thead th{position:sticky;background:var(--panel);z-index:2;color:var(--muted);fo
 thead tr:first-child th{top:0;height:26px;border-bottom:1px solid var(--line)}
 thead tr:nth-child(2) th{top:26px;height:22px;border-bottom:1px solid var(--line)}
 th.day{color:var(--ink);font-weight:700;border-left:2px solid var(--line)}
+th.tot,td.tot{position:sticky;right:0;background:var(--panel);z-index:1;min-width:46px;padding:0 8px;border-left:2px solid var(--line);font-weight:700;font-variant-numeric:tabular-nums;color:var(--ink)}
+thead th.tot{z-index:3;color:var(--ink)}
+tfoot td.tot{z-index:2}
+td.tot small{font-weight:500;color:var(--muted);margin-left:1px}
+td.tot.lo{background:var(--warn-soft);color:var(--warn)}
+td.tot.hi{background:var(--gr-soft);color:var(--gr)}
+td.tot.more{color:var(--gr)}
+td.tot.zero{color:var(--muted);font-weight:500}
+tr.hl td.tot{box-shadow:inset 0 2px 0 var(--gr),inset 0 -2px 0 var(--gr)}
 th.nmcol,td.nmcol{position:sticky;left:0;background:var(--panel);z-index:1;text-align:left;padding:0 10px;max-width:190px;overflow:hidden;text-overflow:ellipsis;border-right:1px solid var(--line)}
 thead th.nmcol{z-index:3}
 td.c{width:34px;min-width:34px;height:26px;border-bottom:1px solid var(--line);cursor:default;position:relative}
@@ -731,7 +740,7 @@ function renderGrid(){
   const byDay = {}; m.slots.forEach((s,i) => (byDay[s.day] = byDay[s.day] || []).push(i));
   let h = '<thead><tr><th class="nmcol" rowspan="2">Εκπαιδευτικός</th>';
   Object.keys(byDay).forEach(d => h += `<th class="day dstart" colspan="${byDay[d].length}">${DAYS[d]}</th>`);
-  h += '</tr><tr>';
+  h += '<th class="tot" rowspan="2" title="ΓΡ που έχουν ανατεθεί / στόχος">ΓΡ</th></tr><tr>';
   m.slots.forEach((s,i) => h += `<th class="${i && m.slots[i-1].day !== s.day ? 'dstart' : (i===0?'dstart':'')}">${s.period}</th>`);
   h += '</tr></thead><tbody>';
   m.teachers.forEach((t,ti) => {
@@ -747,6 +756,13 @@ function renderGrid(){
       h += t.staff ? `<td class="c F no${ds}"></td>`
         : `<td class="c F ${ok ? 'ok' : 'no man'}${ds}" data-t="${ti}" data-s="${i}" title="${t.name} · ${DAYS[s.day]} ${s.period}η · κλικ για ΓΡ${ok ? '' : ' (εκτός κανόνων)'}${taken ? ' · η ώρα έχει ήδη ΓΡ' : ''}"></td>`;
     });
+    const got = S.assign[ti].length, q = S.quotas[ti];
+    if (t.staff) h += '<td class="tot"></td>';
+    else {
+      const st = got < q ? 'lo' : got > q ? 'hi' : q === 0 ? 'zero' : q > 1 ? 'more' : '';
+      const tip = q === 0 ? 'εξαίρεση' : got < q ? `λείπ${q - got === 1 ? 'ει' : 'ουν'} ${q - got}` : got > q ? `${got - q} πάνω από τον στόχο` : 'σωστά';
+      h += `<td class="tot ${st}" title="${t.name}: ${got} ΓΡ, στόχος ${q} · ${tip}">${got}${got !== q ? `<small>/${q}</small>` : ''}</td>`;
+    }
     h += '</tr>';
   });
   h += '</tbody><tfoot><tr><td class="nmcol">ΓΡ ανά ώρα</td>';
@@ -755,6 +771,8 @@ function renderGrid(){
     const cls = !usable[i] ? 'covX' : cnt[i] === 0 ? 'cov0' : cnt[i] === 1 ? 'cov1' : 'covN';
     h += `<td class="c ${cls}${ds}">${usable[i] || cnt[i] ? cnt[i] : '–'}</td>`;
   });
+  const sumGot = S.assign.reduce((a, b) => a + b.length, 0), sumQ = S.quotas.reduce((a, b) => a + b, 0);
+  h += `<td class="tot" title="Σύνολο ΓΡ / στόχος">${sumGot}${sumGot !== sumQ ? `<small>/${sumQ}</small>` : ''}</td>`;
   h += '</tr></tfoot>';
   $('grid').innerHTML = h;
 }
