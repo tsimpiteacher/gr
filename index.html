@@ -185,7 +185,7 @@ td.covX{color:var(--muted);font-weight:400}
       <div class="rules">
         <label><input type="checkbox" id="r-slot" checked> Το πολύ ένα ΓΡ την ίδια ώρα</label>
         <label><input type="checkbox" id="r-last" checked> Όχι ΓΡ στην τελευταία ώρα της ημέρας (7η)</label>
-        <label><input type="checkbox" id="r-day" checked> Το πολύ ένα ΓΡ τη μέρα ανά εκπαιδευτικό</label>
+        <label><input type="checkbox" id="r-day" checked> Το πολύ ένα ΓΡ τη μέρα ανά εκπαιδευτικό (όσοι έχουν επιβάρυνση μπορούν και στην ίδια μέρα)</label>
         <label><input type="checkbox" id="r-present" checked> Μόνο σε μέρα που ο εκπαιδευτικός έχει μάθημα</label>
         <label><input type="checkbox" id="r-between"> Μόνο σε κενό ανάμεσα σε μαθήματα</label>
         <label><input type="checkbox" id="r-keep"> Κράτα τα ΓΡ που υπάρχουν ήδη στο αρχείο</label>
@@ -388,6 +388,8 @@ function solve(model, quotas, rules, opts = {}) {
         if (asg[t].length >= quotas[t]) continue;
         const usedDays = new Set(asg[t].map(i => model.slots[i].day));
         let cand = elig[t].filter(i => !asg[t].includes(i) && !(rules.onePerDay && usedDays.has(model.slots[i].day)));
+        // teachers with extra load (2+) may take a second ΓΡ on the same day when no other day fits
+        if (!cand.length && quotas[t] > 1) cand = elig[t].filter(i => !asg[t].includes(i));
         if (!cand.length) continue;
         let m = Infinity; cand.forEach(i => m = Math.min(m, cnt[i]));
         cand = cand.filter(i => cnt[i] === m);
@@ -405,7 +407,7 @@ function solve(model, quotas, rules, opts = {}) {
           const days = new Set(asg[t].filter((_, j) => j !== k).map(i => model.slots[i].day));
           for (const to of elig[t]) {
             if (to === from || asg[t].includes(to)) continue;
-            if (rules.onePerDay && days.has(model.slots[to].day)) continue;
+            if (rules.onePerDay && quotas[t] <= 1 && days.has(model.slots[to].day)) continue;
             if (cnt[to] + 1 < cnt[from]) { cnt[from]--; cnt[to]++; asg[t][k] = to; improved = true; break; }
           }
         }
@@ -431,9 +433,10 @@ function solveOnePerSlot(model, quotas, rules, opts = {}) {
   fixed.forEach((f, t) => f.forEach(i => { asg[t].push(i); if (owner[i] < 0) owner[i] = t; blocked.add(i); }));
   const shuffle = a => { for (let i = a.length - 1; i > 0; i--) { const j = Math.floor(rand() * (i + 1)); [a[i], a[j]] = [a[j], a[i]]; } return a; };
   const dayOf = i => model.slots[i].day;
+  const relaxed = new Set();                       // extra-load teachers allowed 2+ ΓΡ on one day
   const canTake = (t, i, except) => {
     if (blocked.has(i) && owner[i] !== t) return false;
-    if (!rules.onePerDay) return true;
+    if (!rules.onePerDay || relaxed.has(t)) return true;
     return !asg[t].some(x => x !== except && dayOf(x) === dayOf(i));
   };
   // try to give teacher t one more slot, moving other teachers' ΓΡ along an augmenting path
@@ -464,7 +467,10 @@ function solveOnePerSlot(model, quotas, rules, opts = {}) {
   // phase 1: one each; phase 2+: extra load
   const maxQ = Math.max(0, ...quotas);
   for (let round = 1; round <= maxQ; round++)
-    for (const t of prio) if (quotas[t] >= round && asg[t].length < round) augment(t);
+    for (const t of prio) if (quotas[t] >= round && asg[t].length < round) {
+      if (augment(t)) continue;
+      if (quotas[t] > 1 && rules.onePerDay) { relaxed.add(t); augment(t); }
+    }
   const cnt = new Array(N).fill(0); asg.forEach(a => a.forEach(i => cnt[i]++));
   const shortfall = model.teachers.map((t, i) => Math.max(0, quotas[i] - asg[i].length));
   return { assign: asg, counts: cnt, shortfall, elig };
@@ -775,7 +781,7 @@ $('grid').addEventListener('click', e => {
     S.assign[t] = a.filter(x => x !== s); S.locked[t] = S.locked[t].filter(x => x !== s);
     if (S.quotas[t] > S.assign[t].length) { /* keep quota, user can rerun */ }
   } else {
-    if (rules().onePerDay) { // move: replace same-day ΓΡ if any
+    if (rules().onePerDay && S.quotas[t] <= 1) { // move: replace same-day ΓΡ if any (extra-load teachers may have more on one day)
       const sameDay = a.find(x => m.slots[x].day === m.slots[s].day);
       if (sameDay != null) { S.assign[t] = a.filter(x => x !== sameDay); S.locked[t] = S.locked[t].filter(x => x !== sameDay); }
     }
