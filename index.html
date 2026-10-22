@@ -49,6 +49,11 @@ button,.btn{font:inherit;font-weight:600;border-radius:8px;border:1px solid var(
 button:hover{border-color:var(--muted)}
 button.primary{background:var(--gr);border-color:var(--gr);color:var(--gr-ink)}
 button.primary:hover{filter:brightness(1.07)}
+#run{min-width:13ch;justify-content:center}
+.sync{max-width:26ch}
+.sync span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.sync.on{border-color:var(--ok);color:var(--ok)}
+.sync.err{border-color:var(--warn);color:var(--warn)}
 button:focus-visible,input:focus-visible,label.file:focus-within{outline:2px solid var(--focus);outline-offset:2px}
 button:disabled{opacity:.5;cursor:default}
 .actions{display:flex;flex-wrap:wrap;gap:8px}
@@ -118,6 +123,11 @@ td.L{background:var(--lesson);color:var(--lesson-ink);font-size:.68rem}
 td.F.ok{cursor:pointer}
 td.F.ok:hover{background:var(--gr-soft)}
 td.F.no{background:repeating-linear-gradient(135deg,transparent 0 4px,var(--lesson) 4px 5px)}
+td.F.man{cursor:pointer}
+td.F.man:hover{background:var(--gr-soft)}
+tr.miss td.nmcol{color:var(--warn);font-weight:700}
+tr.miss td.nmcol::before{content:"●";margin-right:5px;font-size:.7em;vertical-align:.15em}
+tr.miss td.F.ok{background:var(--warn-soft)}
 td.X{background:var(--grey);color:var(--lesson-ink);font-size:.68rem}
 td.G{background:var(--gr);color:var(--gr-ink);font-weight:700;cursor:pointer}
 td.G.lock::after{content:"";position:absolute;top:3px;right:3px;width:5px;height:5px;border-radius:50%;background:var(--gr-ink)}
@@ -155,6 +165,7 @@ td.covX{color:var(--muted);font-weight:400}
     </div>
     <div class="actions">
       <button id="install" type="button" hidden>Εγκατάσταση</button>
+      <button id="sync" type="button" class="sync" hidden>☁ Συγχρονισμός</button>
       <button id="run" class="primary" type="button">Νέα κατανομή</button>
       <button id="save" type="button">Αποθήκευση Excel</button>
     </div>
@@ -215,7 +226,8 @@ td.covX{color:var(--muted);font-weight:400}
           <span><i style="background:var(--lesson)"></i>Μάθημα</span>
           <span><i style="background:var(--grey)"></i>Γκρι: εκτός όλη τη μέρα</span>
           <span><i style="background:repeating-linear-gradient(135deg,transparent 0 4px,var(--lesson) 4px 5px)"></i>Κενό εκτός κανόνων</span>
-          <span>Κλικ σε κενό: βάζεις ΓΡ (κλειδώνει) · κλικ σε ΓΡ: το βγάζεις</span>
+          <span><i style="background:var(--warn-soft)"></i>Κενά για όσους μένουν χωρίς ΓΡ</span>
+          <span>Κλικ σε οποιοδήποτε κενό: βάζεις ΓΡ χειροκίνητα, ακόμα κι αν η ώρα έχει ήδη · κλικ σε ΓΡ: το βγάζεις</span>
         </div>
       </div>
       <div class="scroll"><table id="grid"></table></div>
@@ -226,6 +238,7 @@ td.covX{color:var(--muted);font-weight:400}
 <div class="toast" id="toast" hidden></div>
 
 <script src="exceljs.min.js"></script>
+<script src="firebase-config.js"></script>
 <script>
 // If the local copy did not load (old cache, blocked file), load the same library from a CDN.
 if (!window.ExcelJS) document.write('<script src="https://cdn.jsdelivr.net/npm/exceljs@4.4.0/dist/exceljs.min.js"><\/script>');
@@ -577,7 +590,7 @@ function persist(){
 function toast(msg){ const t = $('toast'); t.textContent = msg; t.hidden = false; clearTimeout(toast.h); toast.h = setTimeout(()=>t.hidden = true, 3200); }
 function showError(msg){ const e = $('error'); e.textContent = msg; e.hidden = !msg; }
 
-async function loadBuffer(buf, name){
+async function loadBuffer(buf, name, plan){
   showError('');
   if (!window.ExcelJS) { showError('Η βιβλιοθήκη για τα αρχεία Excel δεν φόρτωσε. Κλείσε και ξανάνοιξε την εφαρμογή ή πάτα Ctrl+Shift+R. Χρειάζεται σύνδεση στο internet την πρώτη φορά.'); return; }
   try {
@@ -587,10 +600,23 @@ async function loadBuffer(buf, name){
     const q = (saved.quotas) || {};
     S.quotas = m.teachers.map(t => t.staff ? 0 : (t.name in q ? q[t.name] : 1));
     S.locked = m.teachers.map(() => []);
+    const fits = a => Array.isArray(a) && a.length === m.teachers.length && a.every(x => Array.isArray(x) && x.every(i => Number.isInteger(i) && i >= 0 && i < m.slots.length));
+    const restore = plan && fits(plan.assign) && fits(plan.locked);
+    if (restore && Array.isArray(plan.quotas) && plan.quotas.length === m.teachers.length) S.quotas = plan.quotas.map(x => Math.max(0, Math.min(5, x | 0)));
     $('fname').textContent = name;
     $('school').textContent = m.title || 'Ωρολόγιο πρόγραμμα';
     $('empty').hidden = true; $('mainview').hidden = false; ['run','save'].forEach(id => $(id).disabled = false);
-    run();
+    if (restore) {
+      S.assign = plan.assign.map(a => a.slice()); S.locked = plan.locked.map(a => a.slice());
+      S.elig = eligNow(); S.dirty = !!plan.dirty; S.savedAt = plan.at || 0; render();
+    } else if (m.teachers.some(t => t.cells.includes('G'))) {
+      // the file already has ΓΡ (e.g. saved from another device): show them as they are
+      S.assign = m.teachers.map(t => t.cells.map((c, i) => c === 'G' ? i : -1).filter(i => i >= 0));
+      S.locked = S.assign.map(a => a.slice());
+      S.quotas = S.quotas.map((q, i) => m.teachers[i].staff ? 0 : Math.max(q, S.assign[i].length));
+      S.elig = eligNow(); S.dirty = false; savePlan(); render();
+      toast('Φορτώθηκαν τα ΓΡ που υπάρχουν στο αρχείο');
+    } else run();
   } catch(e) { showError('Δεν μπόρεσα να διαβάσω το αρχείο: ' + (e.message || e) + ' Βεβαιώσου ότι είναι .xlsx με εκπαιδευτικούς στη στήλη Α και τις ημέρες στην επικεφαλίδα.'); }
 }
 function fixedSets(){
@@ -605,8 +631,35 @@ function run(){
   if (!S.model) return;
   const r = rules(), o = { fixed: fixedSets(), restarts: 80, seed: (Math.random()*1e9)|0 };
   const res = r.onePerSlot ? solveOnePerSlot(S.model, S.quotas, r, o) : solve(S.model, S.quotas, r, o);
-  S.assign = res.assign; S.elig = res.elig;
-  render();
+  S.assign = res.assign; S.elig = res.elig; S.dirty = false;
+  savePlan(); render();
+}
+// The current plan (file + ΓΡ + manual ΓΡ) stays on this device until a new one is made.
+const PLAN_KEY = 'gr-plan-v1';
+function toB64(buf){ const u = new Uint8Array(buf); let s = ''; for (let i = 0; i < u.length; i += 0x8000) s += String.fromCharCode.apply(null, u.subarray(i, i + 0x8000)); return btoa(s); }
+function fromB64(s){ const bin = atob(s), u = new Uint8Array(bin.length); for (let i = 0; i < bin.length; i++) u[i] = bin.charCodeAt(i); return u.buffer; }
+function savePlan(){
+  if (!S.model) return;
+  S.savedAt = Date.now();
+  const plan = { fname:S.fname, file:toB64(S.buf), assign:S.assign, locked:S.locked, quotas:S.quotas, dirty:!!S.dirty, settings:saved, at:S.savedAt };
+  try { localStorage.setItem(PLAN_KEY, JSON.stringify(plan)); } catch(e) {}
+  if (window.onPlanSaved) window.onPlanSaved(plan);
+}
+// apply a plan that arrived from another device
+async function applyPlan(p){
+  if (!p || !p.file) return;
+  if (p.settings && typeof p.settings === 'object') {
+    saved = { quotas: p.settings.quotas || {}, rules: p.settings.rules || rules() }; store.set(saved);
+    for (const k in ruleIds) if (saved.rules && k in saved.rules) $(ruleIds[k]).checked = !!saved.rules[k];
+  }
+  try { localStorage.setItem(PLAN_KEY, JSON.stringify(p)); } catch(e) {}
+  await loadBuffer(fromB64(p.file), p.fname, p);
+}
+function readPlan(){ try { const p = JSON.parse(localStorage.getItem(PLAN_KEY)); return p && p.file ? p : null; } catch(e) { return null; } }
+function savedLabel(){
+  if (!S.savedAt) return 'Δεν αποθηκεύεται σε αυτή τη συσκευή';
+  const d = new Date(S.savedAt), p = n => String(n).padStart(2, '0');
+  return `Αποθηκευμένη κατανομή · ${p(d.getDate())}/${p(d.getMonth()+1)} ${p(d.getHours())}:${p(d.getMinutes())}`;
 }
 function eligNow(){ return S.model.teachers.map(t => eligible(S.model, t, rules())); }
 
@@ -633,6 +686,8 @@ function renderSummary(){
     <span class="chip">ανά ώρα <b>${mn}–${mx}</b></span>
     <span class="chip">εξαιρέσεις <b>${ex}</b></span>
     <span class="chip">επιβάρυνση <b>${more}</b></span>
+    <span class="chip ${S.savedAt ? '' : 'warn'}" title="Μένει μέχρι να πατήσεις «Νέα κατανομή» ή να ανεβάσεις άλλο αρχείο">${savedLabel()}</span>
+    ${S.dirty ? `<span class="chip warn">Άλλαξαν ρυθμίσεις · πάτα «Νέα κατανομή» για να εφαρμοστούν</span>` : ''}
     ${dup ? `<span class="chip warn"><b>${dup}</b> ${dup === 1 ? 'ώρα' : 'ώρες'} με 2+ ΓΡ</span>` : ''}
     ${short ? `<span class="chip warn"><b>${short}</b> χωρίς όλα τα ΓΡ τους (δες «Προβλήματα»)</span>` : ''}`;
 }
@@ -675,14 +730,16 @@ function renderGrid(){
   h += '</tr></thead><tbody>';
   m.teachers.forEach((t,ti) => {
     const set = new Set(S.assign[ti]), lock = new Set(S.locked[ti]), el = new Set(S.elig[ti]);
-    h += `<tr class="${t.staff ? 'staff' : ''}${S.hl === ti ? ' hl' : ''}"><td class="nmcol" title="${t.name} · ${t.spec}">${t.name}</td>`;
+    const miss = !t.staff && S.assign[ti].length < S.quotas[ti];
+    h += `<tr class="${t.staff ? 'staff' : ''}${S.hl === ti ? ' hl' : ''}${miss ? ' miss' : ''}"><td class="nmcol" title="${t.name} · ${t.spec}${miss ? ' · χρειάζεται ΓΡ: κλικ σε ένα κενό του' : ''}">${t.name}</td>`;
     m.slots.forEach((s,i) => {
       const ds = (i === 0 || m.slots[i-1].day !== s.day) ? ' dstart' : '';
       if (t.grey && t.grey[i]) { h += `<td class="c X${ds}" title="${t.name} · ${DAYS[s.day]}: γκρι, εξαιρείται όλη η μέρα">${t.cells[i] === 'L' ? (t.labels[i] || '').slice(0,4) : ''}</td>`; return; }
       if (t.cells[i] === 'L') { h += `<td class="c L${ds}">${t.staff ? '' : (t.labels[i] || '').slice(0,4)}</td>`; return; }
       if (set.has(i)) { h += `<td class="c G${lock.has(i) ? ' lock' : ''}${ds}" data-t="${ti}" data-s="${i}" title="${t.name} · ${DAYS[s.day]} ${s.period}η · κλικ για αφαίρεση">ΓΡ</td>`; return; }
-      const ok = !t.staff && el.has(i);
-      h += `<td class="c F ${ok ? 'ok' : 'no'}${ds}" ${ok ? `data-t="${ti}" data-s="${i}" title="${t.name} · ${DAYS[s.day]} ${s.period}η · κλικ για ΓΡ"` : ''}></td>`;
+      const ok = el.has(i), taken = cnt[i] > 0;
+      h += t.staff ? `<td class="c F no${ds}"></td>`
+        : `<td class="c F ${ok ? 'ok' : 'no man'}${ds}" data-t="${ti}" data-s="${i}" title="${t.name} · ${DAYS[s.day]} ${s.period}η · κλικ για ΓΡ${ok ? '' : ' (εκτός κανόνων)'}${taken ? ' · η ώρα έχει ήδη ΓΡ' : ''}"></td>`;
     });
     h += '</tr>';
   });
@@ -703,7 +760,7 @@ $('tlist').addEventListener('click', e => {
     const i = +b.dataset.i; S.quotas[i] = Math.max(0, Math.min(5, S.quotas[i] + +b.dataset.d));
     // drop locks beyond the new quota
     if (S.locked[i].length > S.quotas[i]) S.locked[i] = S.locked[i].slice(0, S.quotas[i]);
-    persist(); run(); return;
+    S.dirty = true; persist(); savePlan(); render(); return;
   }
   const n = e.target.closest('.nm');
   if (n) { const i = +n.dataset.i; S.hl = S.hl === i ? -1 : i; renderRoster(); renderGrid();
@@ -726,18 +783,28 @@ $('grid').addEventListener('click', e => {
       const drop = S.assign[t].find(x => !S.locked[t].includes(x)) ?? S.assign[t][0];
       S.assign[t] = S.assign[t].filter(x => x !== drop); S.locked[t] = S.locked[t].filter(x => x !== drop);
     }
-    if (rules().onePerSlot) S.assign.forEach((b, o) => { if (o !== t && b.includes(s)) { S.assign[o] = b.filter(x => x !== s); S.locked[o] = S.locked[o].filter(x => x !== s); } });
     if (S.quotas[t] === 0) { S.quotas[t] = 1; persist(); }
     S.assign[t].push(s); S.locked[t].push(s);
   }
-  render();
+  savePlan(); render();
 });
-$('run').addEventListener('click', () => run());
+let armed = null;
+$('run').addEventListener('click', () => {
+  const b = $('run');
+  if (!S.model) return;
+  if (!armed) {
+    b.textContent = 'Πάτα ξανά για αντικατάσταση';
+    armed = setTimeout(() => { armed = null; b.textContent = 'Νέα κατανομή'; }, 4000);
+    return;
+  }
+  clearTimeout(armed); armed = null; b.textContent = 'Νέα κατανομή';
+  run(); toast('Δημιουργήθηκε νέα κατανομή');
+});
 $('menu').addEventListener('click', () => setDrawer(!$('roster').classList.contains('open')));
 $('close').addEventListener('click', () => { setDrawer(false); $('menu').focus(); });
 $('scrim').addEventListener('click', () => setDrawer(false));
 document.addEventListener('keydown', e => { if (e.key === 'Escape' && $('roster').classList.contains('open')) { setDrawer(false); $('menu').focus(); } });
-document.querySelectorAll('.rules input').forEach(i => i.addEventListener('change', () => { persist(); run(); }));
+document.querySelectorAll('.rules input').forEach(i => i.addEventListener('change', () => { persist(); if (!S.model) return; S.elig = eligNow(); S.dirty = true; savePlan(); render(); }));
 document.querySelectorAll('.seg button').forEach(b => b.addEventListener('click', () => {
   S.filter = b.dataset.f; document.querySelectorAll('.seg button').forEach(x => x.setAttribute('aria-pressed', x === b)); renderRoster();
 }));
@@ -766,11 +833,77 @@ $('save').addEventListener('click', async () => {
 });
 
 ['run','save'].forEach(id => $(id).disabled = true);
+{ const p = readPlan(); if (p) loadBuffer(fromB64(p.file), p.fname, p); }
 $('file2').addEventListener('change', async e => { const f = e.target.files[0]; if (f) loadBuffer(await f.arrayBuffer(), f.name); e.target.value = ''; });
 let deferred = null;
 window.addEventListener('beforeinstallprompt', e => { e.preventDefault(); deferred = e; $('install').hidden = false; });
 $('install').addEventListener('click', async () => { if (!deferred) return; deferred.prompt(); await deferred.userChoice; deferred = null; $('install').hidden = true; });
 if ('serviceWorker' in navigator) window.addEventListener('load', () => navigator.serviceWorker.register('sw.js').catch(() => {}));
+</script>
+<script>
+// ---- Συγχρονισμός μέσω Firebase (μόνο αν υπάρχει firebase-config.js με στοιχεία) ----
+(function(){
+  const cfg = window.FIREBASE_CONFIG;
+  if (!cfg || !cfg.apiKey || !cfg.projectId) return;
+  const V = '10.12.2', base = 'https://www.gstatic.com/firebasejs/' + V + '/';
+  const btn = $('sync'); btn.hidden = false;
+  const setBtn = (txt, cls, title) => { btn.innerHTML = '<span></span>'; btn.firstChild.textContent = txt; btn.className = 'sync ' + (cls || ''); btn.title = title || ''; };
+  setBtn('☁ Φόρτωση…');
+  const load = src => new Promise((ok, no) => { const s = document.createElement('script'); s.src = src; s.onload = ok; s.onerror = no; document.head.appendChild(s); });
+  let user = null, ref = null, unsub = null, pushTimer = null, lastRemoteAt = 0, armedOut = null;
+  const local = () => { try { return JSON.parse(localStorage.getItem(PLAN_KEY)); } catch(e) { return null; } };
+
+  function push(plan){
+    if (!ref || !plan) return;
+    clearTimeout(pushTimer);
+    pushTimer = setTimeout(() => {
+      ref.set(plan).then(() => { lastRemoteAt = plan.at; setBtn('☁ ' + (user.email || 'Συνδεδεμένο'), 'on', 'Συγχρονίστηκε. Κλικ για αποσύνδεση.'); })
+        .catch(e => setBtn('☁ Σφάλμα συγχρονισμού', 'err', String(e.message || e)));
+    }, 1200);
+  }
+  window.onPlanSaved = plan => { if (user) { setBtn('☁ Αποθήκευση…', 'on'); push(plan); } };
+
+  Promise.all([load(base + 'firebase-app-compat.js')])
+    .then(() => Promise.all([load(base + 'firebase-auth-compat.js'), load(base + 'firebase-firestore-compat.js')]))
+    .then(() => {
+      firebase.initializeApp(cfg);
+      const auth = firebase.auth(), db = firebase.firestore();
+      auth.onAuthStateChanged(u => {
+        user = u; if (unsub) { unsub(); unsub = null; } ref = null;
+        if (!u) { setBtn('☁ Σύνδεση για συγχρονισμό', '', 'Σύνδεση με Google για να βλέπεις την ίδια κατανομή σε όλες τις συσκευές'); return; }
+        ref = db.collection('users').doc(u.uid).collection('gr').doc('plan');
+        setBtn('☁ ' + (u.email || 'Συνδεδεμένο'), 'on', 'Συγχρονισμένο. Κλικ για αποσύνδεση.');
+        let first = true;
+        unsub = ref.onSnapshot(snap => {
+          if (snap.metadata.hasPendingWrites) return;
+          const remote = snap.exists ? snap.data() : null, mine = local();
+          if (first) {
+            first = false;
+            if (remote && (!mine || (remote.at || 0) > (mine.at || 0))) { lastRemoteAt = remote.at; applyPlan(remote).then(() => toast('Φορτώθηκε η κατανομή από το cloud')); }
+            else if (mine && mine.file) push(mine);
+            return;
+          }
+          if (remote && (remote.at || 0) > Math.max(lastRemoteAt, (local() || {}).at || 0)) {
+            lastRemoteAt = remote.at; applyPlan(remote).then(() => toast('Ενημερώθηκε από άλλη συσκευή'));
+          }
+        }, e => setBtn('☁ Σφάλμα συγχρονισμού', 'err', String(e.message || e)));
+      });
+      btn.addEventListener('click', async () => {
+        if (!user) {
+          const prov = new firebase.auth.GoogleAuthProvider();
+          try { await auth.signInWithPopup(prov); }
+          catch(e) {
+            if (/popup|operation-not-supported|cancelled-popup/.test(e.code || '')) auth.signInWithRedirect(prov);
+            else showError('Η σύνδεση απέτυχε: ' + (e.message || e.code));
+          }
+          return;
+        }
+        if (!armedOut) { setBtn('Πάτα ξανά για αποσύνδεση', 'err'); armedOut = setTimeout(() => { armedOut = null; setBtn('☁ ' + (user.email || 'Συνδεδεμένο'), 'on'); }, 4000); return; }
+        clearTimeout(armedOut); armedOut = null; auth.signOut(); toast('Αποσυνδέθηκες. Η κατανομή μένει σε αυτή τη συσκευή.');
+      });
+    })
+    .catch(() => setBtn('☁ Χωρίς σύνδεση', 'err', 'Ο συγχρονισμός θέλει internet'));
+})();
 </script>
 </body>
 </html>
