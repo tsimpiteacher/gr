@@ -17,7 +17,7 @@
 /* Layout: control strip on top, teacher roster (left) beside the weekly grid (right); stacks on phones. */
 :root{
   --bg:#f4f6f9; --panel:#ffffff; --ink:#1b2531; --muted:#5d6979; --line:#dbe1e9;
-  --grey:#b9c0ca; --lesson:#eaeef4; --lesson-ink:#1b2531;
+  --par:#92d050; --par-ink:#1d3a0c; --grey:#b9c0ca; --lesson:#eaeef4; --lesson-ink:#1b2531;
   --gr:#c62828; --gr-soft:#fdeaea; --gr-ink:#ffffff;
   --ok:#2e7d4f; --ok-soft:#e3f2e8; --warn:#a85d00; --warn-soft:#fff1dc;
   --focus:#2f5fa7;
@@ -26,12 +26,12 @@
 }
 @media (prefers-color-scheme: dark){:root:not([data-theme="light"]){
   --bg:#12171e; --panel:#1a212b; --ink:#e6ebf2; --muted:#9aa6b6; --line:#2c3644;
-  --grey:#4a5462; --lesson:#222b37; --lesson-ink:#e6ebf2;
+  --par:#5f9a2c; --par-ink:#f2fbe9; --grey:#4a5462; --lesson:#222b37; --lesson-ink:#e6ebf2;
   --gr:#ef5350; --gr-soft:#3a1f22; --gr-ink:#ffffff;
   --ok:#5cc28a; --ok-soft:#183025; --warn:#f0a64a; --warn-soft:#33261a; --focus:#8ab4f8; color-scheme:dark}}
 :root[data-theme="dark"]{
   --bg:#12171e; --panel:#1a212b; --ink:#e6ebf2; --muted:#9aa6b6; --line:#2c3644;
-  --grey:#4a5462; --lesson:#222b37; --lesson-ink:#e6ebf2;
+  --par:#5f9a2c; --par-ink:#f2fbe9; --grey:#4a5462; --lesson:#222b37; --lesson-ink:#e6ebf2;
   --gr:#ef5350; --gr-soft:#3a1f22; --gr-ink:#ffffff;
   --ok:#5cc28a; --ok-soft:#183025; --warn:#f0a64a; --warn-soft:#33261a; --focus:#8ab4f8; color-scheme:dark}
 *{box-sizing:border-box}
@@ -138,6 +138,7 @@ tr.miss td.nmcol{color:var(--warn);font-weight:700}
 tr.miss td.nmcol::before{content:"●";margin-right:5px;font-size:.7em;vertical-align:.15em}
 tr.miss td.F.ok{background:var(--warn-soft)}
 td.X{background:var(--grey);color:var(--lesson-ink);font-size:.68rem}
+td.P{background:var(--par);color:var(--par-ink);font-weight:700;font-size:.66rem;cursor:pointer}
 td.G{background:var(--gr);color:var(--gr-ink);font-weight:700;cursor:pointer}
 td.G.lock::after{content:"";position:absolute;top:3px;right:3px;width:5px;height:5px;border-radius:50%;background:var(--gr-ink)}
 tr.staff td.nmcol{color:var(--muted)}
@@ -192,6 +193,7 @@ td.covX{color:var(--muted);font-weight:400}
     <section>
       <p class="label">Κανόνες</p>
       <div class="rules">
+        <label><input type="checkbox" id="r-par" checked> Μία ώρα γονέων την Τετάρτη (πράσινο, όχι 7η)</label>
         <label><input type="checkbox" id="r-slot" checked> Το πολύ ένα ΓΡ την ίδια ώρα</label>
         <label><input type="checkbox" id="r-last" checked> Όχι ΓΡ στην τελευταία ώρα της ημέρας (7η)</label>
         <label><input type="checkbox" id="r-day" checked> Το πολύ ένα ΓΡ τη μέρα ανά εκπαιδευτικό (όσοι έχουν επιβάρυνση μπορούν και στην ίδια μέρα)</label>
@@ -233,6 +235,7 @@ td.covX{color:var(--muted);font-weight:400}
         <div class="legend">
           <span><i style="background:var(--gr)"></i>ΓΡ</span>
           <span><i style="background:var(--lesson)"></i>Μάθημα</span>
+          <span><i style="background:var(--par)"></i>ΓΟΝ: ώρα γονέων (κλικ για αλλαγή ώρας)</span>
           <span><i style="background:var(--grey)"></i>Γκρι: εκτός όλη τη μέρα</span>
           <span><i style="background:repeating-linear-gradient(135deg,transparent 0 4px,var(--lesson) 4px 5px)"></i>Κενό εκτός κανόνων</span>
           <span><i style="background:var(--warn-soft)"></i>Κενά για όσους μένουν χωρίς ΓΡ</span>
@@ -256,6 +259,8 @@ if (!window.ExcelJS) document.write('<script src="https://cdn.jsdelivr.net/npm/e
 // ΓΡ scheduling engine — shared by the page and the Node test.
 const DAYS = ['Δευτέρα', 'Τρίτη', 'Τετάρτη', 'Πέμπτη', 'Παρασκευή'];
 const GR = 'ΓΡ';
+const PAR = 'ΓΟΝ';      // ώρα ενημέρωσης γονέων
+const PARENT_DAY = 2;  // Τετάρτη
 
 function colName(n) { let s = ''; while (n > 0) { const m = (n - 1) % 26; s = String.fromCharCode(65 + m) + s; n = Math.floor((n - 1) / 26); } return s; }
 function colNum(s) { let n = 0; for (const ch of s) n = n * 26 + ch.charCodeAt(0) - 64; return n; }
@@ -335,8 +340,10 @@ function parseSheet(ws) {
     teachers.push({
       row: r, name, spec, staff, blockedDays,
       grey: cells.map(c => c.grey),
-      cells: cells.map(c => c.v === GR && !c.merged ? 'G' : (c.v ? 'L' : 'F')),
-      labels: cells.map(c => (c.v === GR ? '' : c.v)),
+      cells: cells.map(c => c.v === GR && !c.merged ? 'G' : (c.v === PAR && !c.merged) ? 'F' : (c.v ? 'L' : 'F')),
+      labels: cells.map(c => (c.v === GR || c.v === PAR ? '' : c.v)),
+      fileParent: cells.findIndex(c => c.v === PAR && !c.merged),
+      parent: -1,
     });
   }
   // stats row (existing COUNTIF row) or two rows below the table
@@ -357,6 +364,7 @@ function eligible(model, t, rules) {
   model.slots.forEach((s, i) => { if (t.cells[i] === 'L') (lessonsByDay[s.day] = lessonsByDay[s.day] || []).push(s.period); });
   model.slots.forEach((s, i) => {
     if (t.cells[i] === 'L') return;
+    if (t.parent === i) return;
     if (t.blockedDays.includes(s.day)) return;
     if (rules.noLastPeriod && s.period === model.maxPeriod[s.day]) return;
     const ls = lessonsByDay[s.day] || [];
@@ -485,6 +493,36 @@ function solveOnePerSlot(model, quotas, rules, opts = {}) {
   return { assign: asg, counts: cnt, shortfall, elig };
 }
 
+// Slots where teacher t can have the parents hour: Wednesday, free, not the last period, on a day they teach.
+function parentCandidates(model, t, avoid) {
+  if (t.staff || t.blockedDays.includes(PARENT_DAY)) return [];
+  const idx = model.slots.map((s, i) => i).filter(i => model.slots[i].day === PARENT_DAY);
+  const lessons = idx.filter(i => t.cells[i] === 'L').map(i => model.slots[i].period);
+  if (!lessons.length) return [];
+  const free = idx.filter(i => t.cells[i] !== 'L' && model.slots[i].period !== model.maxPeriod[PARENT_DAY] && !(avoid && avoid.includes(i)));
+  const between = free.filter(i => { const p = model.slots[i].period; return lessons.some(x => x < p) && lessons.some(x => x > p); });
+  return between.length ? between.concat(free.filter(i => !between.includes(i))) : free;
+}
+// One parents hour per teacher, spread over the Wednesday periods. keep[t] >= 0 keeps a chosen slot.
+function assignParents(model, opts = {}) {
+  const rand = rng(opts.seed || Date.now());
+  const keep = opts.keep || [], avoid = opts.avoid || [];
+  const out = model.teachers.map(() => -1), load = {};
+  model.teachers.forEach((t, ti) => { if (keep[ti] >= 0) { out[ti] = keep[ti]; load[keep[ti]] = (load[keep[ti]] || 0) + 1; } });
+  const order = model.teachers.map((t, ti) => ti).filter(ti => out[ti] < 0)
+    .map(ti => ({ ti, c: parentCandidates(model, model.teachers[ti], avoid[ti]) }))
+    .filter(o => o.c.length).sort((a, b) => a.c.length - b.c.length || rand() - 0.5);
+  order.forEach(({ ti, c }) => {
+    const t = model.teachers[ti];
+    const isBetween = i => { const p = model.slots[i].period, ls = model.slots.map((s, j) => j).filter(j => model.slots[j].day === PARENT_DAY && t.cells[j] === 'L').map(j => model.slots[j].period); return ls.some(x => x < p) && ls.some(x => x > p); };
+    const pool = c.some(isBetween) ? c.filter(isBetween) : c;
+    let m = Infinity; pool.forEach(i => m = Math.min(m, load[i] || 0));
+    const best = pool.filter(i => (load[i] || 0) === m), pick = best[Math.floor(rand() * best.length)];
+    out[ti] = pick; load[pick] = (load[pick] || 0) + 1;
+  });
+  return out;
+}
+
 function stats(model, assign) {
   const N = model.slots.length;
   const perSlot = new Array(N).fill(0), free = new Array(N).fill(0);
@@ -493,14 +531,17 @@ function stats(model, assign) {
     assign[ti].forEach(i => perSlot[i]++);
     const present = {};
     t.cells.forEach((c, i) => { if (c === 'L') present[model.slots[i].day] = true; });
-    t.cells.forEach((c, i) => { const d = model.slots[i].day; if (c !== 'L' && present[d] && !t.blockedDays.includes(d)) free[i]++; });
+    t.cells.forEach((c, i) => { const d = model.slots[i].day; if (c !== 'L' && t.parent !== i && present[d] && !t.blockedDays.includes(d)) free[i]++; });
   });
   const hours = model.teachers.map(t => t.cells.filter(c => c === 'L').length);
   return { perSlot, free, hours };
 }
 
 // write results into an ExcelJS worksheet
-function writeSheet(ws, model, assign, quotas) {
+function writeSheet(ws, model, assign, quotas, parents) {
+  parents = parents || model.teachers.map(() => -1);
+  const green = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF92D050' } };
+  const noFill = { type: 'pattern', pattern: 'none' };
   const red = { name: 'Calibri', size: 11, bold: true, color: { argb: 'FFFF0000' } };
   // ExcelJS shares style objects between cells: give each cell its own style before changing the font
   const setFont = (cell, f) => { cell.style = Object.assign({}, cell.style, { font: f }); };
@@ -509,6 +550,10 @@ function writeSheet(ws, model, assign, quotas) {
     const set = new Set(assign[ti]);
     model.slots.forEach((s, i) => {
       const cell = ws.getCell(t.row, s.col);
+      if (t.cells[i] !== 'L' && parents[ti] === i) {
+        cell.value = PAR; cell.style = Object.assign({}, cell.style, { fill: green, font: black(cell.font) }); return;
+      }
+      if (t.cells[i] !== 'L' && txt(cell.value) === PAR) { cell.value = null; cell.style = Object.assign({}, cell.style, { fill: noFill }); }
       if (t.cells[i] !== 'L' && set.has(i)) { cell.value = GR; setFont(cell, Object.assign({}, cell.font || {}, red)); return; }
       if (t.cells[i] !== 'L' && txt(cell.value) === GR) cell.value = null;
       setFont(cell, black(cell.font)); // only ΓΡ stays red & bold
@@ -582,19 +627,19 @@ function writeSheet(ws, model, assign, quotas) {
   ] });
 }
 
-if (typeof module !== 'undefined') module.exports = { parseSheet, eligible, solve, solveOnePerSlot, stats, writeSheet, colName, GR, DAYS };
+if (typeof module !== 'undefined') module.exports = { parseSheet, eligible, assignParents, parentCandidates, PAR, PARENT_DAY, solve, solveOnePerSlot, stats, writeSheet, colName, GR, DAYS };
 
 </script>
 <script>
 const $ = id => document.getElementById(id);
 const DAYS_SHORT = ['Δευ','Τρί','Τετ','Πέμ','Παρ'];
-const S = { buf:null, fname:'', model:null, quotas:[], assign:[], locked:[], filter:'all', hl:-1 };
+const S = { buf:null, fname:'', model:null, quotas:[], assign:[], locked:[], parents:[], filter:'all', hl:-1 };
 const store = {
   get(){ try { return JSON.parse(localStorage.getItem('gr-settings-v1')) || {}; } catch(e){ return {}; } },
   set(v){ try { localStorage.setItem('gr-settings-v1', JSON.stringify(v)); } catch(e){} }
 };
 let saved = store.get();
-const ruleIds = { onePerSlot:'r-slot', noLastPeriod:'r-last', onePerDay:'r-day', onlyTeachingDays:'r-present', onlyBetween:'r-between', keepExisting:'r-keep' };
+const ruleIds = { parentsHour:'r-par', onePerSlot:'r-slot', noLastPeriod:'r-last', onePerDay:'r-day', onlyTeachingDays:'r-present', onlyBetween:'r-between', keepExisting:'r-keep' };
 if (saved.rules) for (const k in ruleIds) if (k in saved.rules) $(ruleIds[k]).checked = !!saved.rules[k];
 const rules = () => { const r = {}; for (const k in ruleIds) r[k] = $(ruleIds[k]).checked; return r; };
 function persist(){
@@ -623,16 +668,27 @@ async function loadBuffer(buf, name, plan){
     $('empty').hidden = true; $('mainview').hidden = false; ['run','save'].forEach(id => $(id).disabled = false);
     if (restore) {
       S.assign = plan.assign.map(a => a.slice()); S.locked = plan.locked.map(a => a.slice());
+      if (Array.isArray(plan.parents)) setParents(plan.parents); else newParents(S.assign);
       S.elig = eligNow(); S.dirty = !!plan.dirty; S.savedAt = plan.at || 0; render();
     } else if (m.teachers.some(t => t.cells.includes('G'))) {
       // the file already has ΓΡ (e.g. saved from another device): show them as they are
       S.assign = m.teachers.map(t => t.cells.map((c, i) => c === 'G' ? i : -1).filter(i => i >= 0));
-      S.locked = S.assign.map(a => a.slice());
+      S.locked = m.teachers.map(() => []);   // «Νέα κατανομή» may replace them (unless «Κράτα τα ΓΡ» is on)
       S.quotas = S.quotas.map((q, i) => m.teachers[i].staff ? 0 : Math.max(q, S.assign[i].length));
+      const fp = m.teachers.map(t => t.fileParent);
+      if (fp.some(x => x >= 0)) setParents(fp); else newParents(S.assign);
       S.elig = eligNow(); S.dirty = false; savePlan(); render();
       toast('Φορτώθηκαν τα ΓΡ που υπάρχουν στο αρχείο');
     } else run();
   } catch(e) { showError('Δεν μπόρεσα να διαβάσω το αρχείο: ' + (e.message || e) + ' Βεβαιώσου ότι είναι .xlsx με εκπαιδευτικούς στη στήλη Α και τις ημέρες στην επικεφαλίδα.'); }
+}
+function setParents(p){
+  S.parents = S.model.teachers.map((t, i) => Number.isInteger(p && p[i]) && p[i] >= 0 && p[i] < S.model.slots.length && t.cells[p[i]] !== 'L' ? p[i] : -1);
+  S.model.teachers.forEach((t, i) => t.parent = S.parents[i]);
+}
+function newParents(avoid, keep){
+  if (!rules().parentsHour) return setParents([]);
+  setParents(assignParents(S.model, { avoid, keep, seed: (Math.random()*1e9)|0 }));
 }
 function fixedSets(){
   const m = S.model, r = rules();
@@ -644,7 +700,9 @@ function fixedSets(){
 }
 function run(){
   if (!S.model) return;
-  const r = rules(), o = { fixed: fixedSets(), restarts: 80, seed: (Math.random()*1e9)|0 };
+  const fx = fixedSets();
+  newParents(fx);
+  const r = rules(), o = { fixed: fx, restarts: 80, seed: (Math.random()*1e9)|0 };
   const res = r.onePerSlot ? solveOnePerSlot(S.model, S.quotas, r, o) : solve(S.model, S.quotas, r, o);
   S.assign = res.assign; S.elig = res.elig; S.dirty = false;
   savePlan(); render();
@@ -656,7 +714,7 @@ function fromB64(s){ const bin = atob(s), u = new Uint8Array(bin.length); for (l
 function savePlan(){
   if (!S.model) return;
   S.savedAt = Date.now();
-  const plan = { fname:S.fname, file:toB64(S.buf), assign:S.assign, locked:S.locked, quotas:S.quotas, dirty:!!S.dirty, settings:saved, at:S.savedAt };
+  const plan = { fname:S.fname, file:toB64(S.buf), assign:S.assign, locked:S.locked, parents:S.parents, quotas:S.quotas, dirty:!!S.dirty, settings:saved, at:S.savedAt };
   try { localStorage.setItem(PLAN_KEY, JSON.stringify(plan)); } catch(e) {}
   if (window.onPlanSaved) window.onPlanSaved(plan);
 }
@@ -751,6 +809,7 @@ function renderGrid(){
       const ds = (i === 0 || m.slots[i-1].day !== s.day) ? ' dstart' : '';
       if (t.grey && t.grey[i]) { h += `<td class="c X${ds}" title="${t.name} · ${DAYS[s.day]}: γκρι, εξαιρείται όλη η μέρα">${t.cells[i] === 'L' ? (t.labels[i] || '').slice(0,4) : ''}</td>`; return; }
       if (t.cells[i] === 'L') { h += `<td class="c L${ds}">${t.staff ? '' : (t.labels[i] || '').slice(0,4)}</td>`; return; }
+      if (t.parent === i) { h += `<td class="c P${ds}" data-p="${ti}" title="${t.name} · ώρα γονέων ${DAYS[s.day]} ${s.period}η · κλικ για άλλη ώρα">ΓΟΝ</td>`; return; }
       if (set.has(i)) { h += `<td class="c G${lock.has(i) ? ' lock' : ''}${ds}" data-t="${ti}" data-s="${i}" title="${t.name} · ${DAYS[s.day]} ${s.period}η · κλικ για αφαίρεση">ΓΡ</td>`; return; }
       const ok = el.has(i), taken = cnt[i] > 0;
       h += t.staff ? `<td class="c F no${ds}"></td>`
@@ -792,6 +851,14 @@ $('tlist').addEventListener('click', e => {
     const row = $('grid').tBodies[0].rows[i]; if (row && S.hl === i) row.scrollIntoView({ block:'nearest' }); }
 });
 $('grid').addEventListener('click', e => {
+  const pc = e.target.closest('td[data-p]');
+  if (pc) {
+    const t = +pc.dataset.p, tt = S.model.teachers[t];
+    const c = parentCandidates(S.model, tt, S.assign[t]).sort((a, b) => a - b);
+    if (c.length > 1) { const k = c.indexOf(tt.parent); S.parents[t] = c[(k + 1) % c.length]; setParents(S.parents); S.elig = eligNow(); savePlan(); render(); }
+    else toast('Δεν υπάρχει άλλο ελεύθερο κενό την Τετάρτη για ' + tt.name);
+    return;
+  }
   const td = e.target.closest('td[data-t]'); if (!td) return;
   const t = +td.dataset.t, s = +td.dataset.s, m = S.model;
   const a = S.assign[t];
@@ -843,7 +910,7 @@ $('save').addEventListener('click', async () => {
   const btn = $('save'); btn.disabled = true;
   try {
     const wb = new ExcelJS.Workbook(); await wb.xlsx.load(S.buf.slice(0));
-    writeSheet(wb.worksheets[0], S.model, S.assign, S.quotas);
+    writeSheet(wb.worksheets[0], S.model, S.assign, S.quotas, S.parents);
     const out = await wb.xlsx.writeBuffer();
     const name = S.fname.replace(/\.xlsx$/i, '') + '_ΓΡ.xlsx';
     const blob = new Blob([out], { type:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
