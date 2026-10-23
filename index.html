@@ -17,7 +17,7 @@
 /* Layout: control strip on top, teacher roster (left) beside the weekly grid (right); stacks on phones. */
 :root{
   --bg:#f4f6f9; --panel:#ffffff; --ink:#1b2531; --muted:#5d6979; --line:#dbe1e9;
-  --par:#92d050; --par-ink:#1d3a0c; --grey:#b9c0ca; --lesson:#eaeef4; --lesson-ink:#1b2531;
+  --par:#92d050; --par-ink:#1d3a0c; --par-soft:#e4f4d4; --grey:#b9c0ca; --lesson:#eaeef4; --lesson-ink:#1b2531;
   --gr:#c62828; --gr-soft:#fdeaea; --gr-ink:#ffffff;
   --ok:#2e7d4f; --ok-soft:#e3f2e8; --warn:#a85d00; --warn-soft:#fff1dc;
   --focus:#2f5fa7;
@@ -26,12 +26,12 @@
 }
 @media (prefers-color-scheme: dark){:root:not([data-theme="light"]){
   --bg:#12171e; --panel:#1a212b; --ink:#e6ebf2; --muted:#9aa6b6; --line:#2c3644;
-  --par:#5f9a2c; --par-ink:#f2fbe9; --grey:#4a5462; --lesson:#222b37; --lesson-ink:#e6ebf2;
+  --par:#5f9a2c; --par-ink:#f2fbe9; --par-soft:#23361a; --grey:#4a5462; --lesson:#222b37; --lesson-ink:#e6ebf2;
   --gr:#ef5350; --gr-soft:#3a1f22; --gr-ink:#ffffff;
   --ok:#5cc28a; --ok-soft:#183025; --warn:#f0a64a; --warn-soft:#33261a; --focus:#8ab4f8; color-scheme:dark}}
 :root[data-theme="dark"]{
   --bg:#12171e; --panel:#1a212b; --ink:#e6ebf2; --muted:#9aa6b6; --line:#2c3644;
-  --par:#5f9a2c; --par-ink:#f2fbe9; --grey:#4a5462; --lesson:#222b37; --lesson-ink:#e6ebf2;
+  --par:#5f9a2c; --par-ink:#f2fbe9; --par-soft:#23361a; --grey:#4a5462; --lesson:#222b37; --lesson-ink:#e6ebf2;
   --gr:#ef5350; --gr-soft:#3a1f22; --gr-ink:#ffffff;
   --ok:#5cc28a; --ok-soft:#183025; --warn:#f0a64a; --warn-soft:#33261a; --focus:#8ab4f8; color-scheme:dark}
 *{box-sizing:border-box}
@@ -139,6 +139,13 @@ tr.miss td.nmcol::before{content:"●";margin-right:5px;font-size:.7em;vertical-
 tr.miss td.F.ok{background:var(--warn-soft)}
 td.X{background:var(--grey);color:var(--lesson-ink);font-size:.68rem}
 td.P{background:var(--par);color:var(--par-ink);font-weight:700;font-size:.66rem;cursor:pointer}
+td.P.lock::after{content:"";position:absolute;top:3px;right:3px;width:5px;height:5px;border-radius:50%;background:var(--par-ink)}
+table.parmode td.F[data-t],table.parmode td.G{cursor:copy}
+table.parmode td.F[data-t]:hover,table.parmode td.G:hover{background:var(--par-soft);color:var(--par-ink)}
+.bar{display:flex;align-items:center;gap:10px 16px;flex-wrap:wrap}
+.modebox{display:flex;align-items:center;gap:8px;flex-wrap:wrap;font-size:.8rem;color:var(--muted)}
+.mode button[data-m="par"][aria-pressed="true"]{background:var(--par);color:var(--par-ink)}
+.mode button[data-m="gr"][aria-pressed="true"]{background:var(--gr);color:var(--gr-ink)}
 td.G{background:var(--gr);color:var(--gr-ink);font-weight:700;cursor:pointer}
 td.G.lock::after{content:"";position:absolute;top:3px;right:3px;width:5px;height:5px;border-radius:50%;background:var(--gr-ink)}
 tr.staff td.nmcol{color:var(--muted)}
@@ -231,15 +238,16 @@ td.covX{color:var(--muted);font-weight:400}
 
     <div class="panel gridbox">
       <div class="gridhead">
-        <button type="button" class="menu-btn" id="menu" aria-controls="roster" aria-expanded="false">☰ Εκπαιδευτικοί<span class="badge" id="badge" hidden></span></button>
+        <div class="bar"><button type="button" class="menu-btn" id="menu" aria-controls="roster" aria-expanded="false">☰ Εκπαιδευτικοί<span class="badge" id="badge" hidden></span></button>
+        <div class="modebox"><span>Το κλικ βάζει:</span><div class="seg mode" role="group" aria-label="Τι βάζει το κλικ στον πίνακα"><button type="button" data-m="gr" aria-pressed="true">ΓΡ</button><button type="button" data-m="par" aria-pressed="false">ΓΟΝ</button></div></div></div>
         <div class="legend">
           <span><i style="background:var(--gr)"></i>ΓΡ</span>
           <span><i style="background:var(--lesson)"></i>Μάθημα</span>
-          <span><i style="background:var(--par)"></i>ΓΟΝ: ώρα γονέων (κλικ για αλλαγή ώρας)</span>
+          <span><i style="background:var(--par)"></i>ΓΟΝ: ώρα γονέων</span>
           <span><i style="background:var(--grey)"></i>Γκρι: εκτός όλη τη μέρα</span>
           <span><i style="background:repeating-linear-gradient(135deg,transparent 0 4px,var(--lesson) 4px 5px)"></i>Κενό εκτός κανόνων</span>
           <span><i style="background:var(--warn-soft)"></i>Κενά για όσους μένουν χωρίς ΓΡ</span>
-          <span>Κλικ σε οποιοδήποτε κενό: βάζεις ΓΡ χειροκίνητα, ακόμα κι αν η ώρα έχει ήδη · κλικ σε ΓΡ: το βγάζεις</span>
+          <span id="hint">Κλικ σε οποιοδήποτε κενό: βάζεις ΓΡ χειροκίνητα, ακόμα κι αν η ώρα έχει ήδη · κλικ σε ΓΡ: το βγάζεις</span>
         </div>
       </div>
       <div class="scroll"><table id="grid"></table></div>
@@ -633,7 +641,7 @@ if (typeof module !== 'undefined') module.exports = { parseSheet, eligible, assi
 <script>
 const $ = id => document.getElementById(id);
 const DAYS_SHORT = ['Δευ','Τρί','Τετ','Πέμ','Παρ'];
-const S = { buf:null, fname:'', model:null, quotas:[], assign:[], locked:[], parents:[], filter:'all', hl:-1 };
+const S = { buf:null, fname:'', model:null, quotas:[], assign:[], locked:[], parents:[], parentLocked:[], mode:'gr', filter:'all', hl:-1 };
 const store = {
   get(){ try { return JSON.parse(localStorage.getItem('gr-settings-v1')) || {}; } catch(e){ return {}; } },
   set(v){ try { localStorage.setItem('gr-settings-v1', JSON.stringify(v)); } catch(e){} }
@@ -660,6 +668,8 @@ async function loadBuffer(buf, name, plan){
     const q = (saved.quotas) || {};
     S.quotas = m.teachers.map(t => t.staff ? 0 : (t.name in q ? q[t.name] : 1));
     S.locked = m.teachers.map(() => []);
+    S.parents = m.teachers.map(() => -1);
+    S.parentLocked = m.teachers.map((t, i) => !!(plan && Array.isArray(plan.parentLocked) && plan.parentLocked.length === m.teachers.length && plan.parentLocked[i]));
     const fits = a => Array.isArray(a) && a.length === m.teachers.length && a.every(x => Array.isArray(x) && x.every(i => Number.isInteger(i) && i >= 0 && i < m.slots.length));
     const restore = plan && fits(plan.assign) && fits(plan.locked);
     if (restore && Array.isArray(plan.quotas) && plan.quotas.length === m.teachers.length) S.quotas = plan.quotas.map(x => Math.max(0, Math.min(5, x | 0)));
@@ -686,9 +696,14 @@ function setParents(p){
   S.parents = S.model.teachers.map((t, i) => Number.isInteger(p && p[i]) && p[i] >= 0 && p[i] < S.model.slots.length && t.cells[p[i]] !== 'L' ? p[i] : -1);
   S.model.teachers.forEach((t, i) => t.parent = S.parents[i]);
 }
-function newParents(avoid, keep){
-  if (!rules().parentsHour) return setParents([]);
-  setParents(assignParents(S.model, { avoid, keep, seed: (Math.random()*1e9)|0 }));
+// Manual ΓΟΝ (placed or removed by hand) stays when a new plan is made.
+function newParents(avoid){
+  const lk = S.parentLocked || [], cur = S.parents || [];
+  if (!rules().parentsHour) return setParents(S.model.teachers.map((t, i) => lk[i] ? cur[i] : -1));
+  const keep = S.model.teachers.map((t, i) => lk[i] && cur[i] >= 0 ? cur[i] : -1);
+  const out = assignParents(S.model, { avoid, keep, seed: (Math.random()*1e9)|0 });
+  lk.forEach((l, i) => { if (l && !(cur[i] >= 0)) out[i] = -1; });
+  setParents(out);
 }
 function fixedSets(){
   const m = S.model, r = rules();
@@ -714,7 +729,7 @@ function fromB64(s){ const bin = atob(s), u = new Uint8Array(bin.length); for (l
 function savePlan(){
   if (!S.model) return;
   S.savedAt = Date.now();
-  const plan = { fname:S.fname, file:toB64(S.buf), assign:S.assign, locked:S.locked, parents:S.parents, quotas:S.quotas, dirty:!!S.dirty, settings:saved, at:S.savedAt };
+  const plan = { fname:S.fname, file:toB64(S.buf), assign:S.assign, locked:S.locked, parents:S.parents, parentLocked:S.parentLocked, quotas:S.quotas, dirty:!!S.dirty, settings:saved, at:S.savedAt };
   try { localStorage.setItem(PLAN_KEY, JSON.stringify(plan)); } catch(e) {}
   if (window.onPlanSaved) window.onPlanSaved(plan);
 }
@@ -809,7 +824,7 @@ function renderGrid(){
       const ds = (i === 0 || m.slots[i-1].day !== s.day) ? ' dstart' : '';
       if (t.grey && t.grey[i]) { h += `<td class="c X${ds}" title="${t.name} · ${DAYS[s.day]}: γκρι, εξαιρείται όλη η μέρα">${t.cells[i] === 'L' ? (t.labels[i] || '').slice(0,4) : ''}</td>`; return; }
       if (t.cells[i] === 'L') { h += `<td class="c L${ds}">${t.staff ? '' : (t.labels[i] || '').slice(0,4)}</td>`; return; }
-      if (t.parent === i) { h += `<td class="c P${ds}" data-p="${ti}" title="${t.name} · ώρα γονέων ${DAYS[s.day]} ${s.period}η · κλικ για άλλη ώρα">ΓΟΝ</td>`; return; }
+      if (t.parent === i) { h += `<td class="c P${S.parentLocked[ti] ? ' lock' : ''}${ds}" data-p="${ti}" title="${t.name} · ώρα γονέων ${DAYS[s.day]} ${s.period}η${S.mode === 'par' ? ' · κλικ για αφαίρεση' : ''}">ΓΟΝ</td>`; return; }
       if (set.has(i)) { h += `<td class="c G${lock.has(i) ? ' lock' : ''}${ds}" data-t="${ti}" data-s="${i}" title="${t.name} · ${DAYS[s.day]} ${s.period}η · κλικ για αφαίρεση">ΓΡ</td>`; return; }
       const ok = el.has(i), taken = cnt[i] > 0;
       h += t.staff ? `<td class="c F no${ds}"></td>`
@@ -834,6 +849,7 @@ function renderGrid(){
   h += `<td class="tot" title="Σύνολο ΓΡ / στόχος">${sumGot}${sumGot !== sumQ ? `<small>/${sumQ}</small>` : ''}</td>`;
   h += '</tr></tfoot>';
   $('grid').innerHTML = h;
+  $('grid').classList.toggle('parmode', S.mode === 'par');
 }
 
 // events
@@ -852,13 +868,18 @@ $('tlist').addEventListener('click', e => {
 });
 $('grid').addEventListener('click', e => {
   const pc = e.target.closest('td[data-p]');
-  if (pc) {
-    const t = +pc.dataset.p, tt = S.model.teachers[t];
-    const c = parentCandidates(S.model, tt, S.assign[t]).sort((a, b) => a - b);
-    if (c.length > 1) { const k = c.indexOf(tt.parent); S.parents[t] = c[(k + 1) % c.length]; setParents(S.parents); S.elig = eligNow(); savePlan(); render(); }
-    else toast('Δεν υπάρχει άλλο ελεύθερο κενό την Τετάρτη για ' + tt.name);
-    return;
+  if (S.mode === 'par') {
+    if (pc) {   // remove this teacher's parents hour
+      const t = +pc.dataset.p; S.parents[t] = -1; S.parentLocked[t] = true;
+      setParents(S.parents); S.elig = eligNow(); savePlan(); render(); return;
+    }
+    const cell = e.target.closest('td[data-t]'); if (!cell) return;
+    const t = +cell.dataset.t, s = +cell.dataset.s;
+    S.assign[t] = S.assign[t].filter(x => x !== s); S.locked[t] = S.locked[t].filter(x => x !== s);
+    S.parents[t] = s; S.parentLocked[t] = true;
+    setParents(S.parents); S.elig = eligNow(); savePlan(); render(); return;
   }
+  if (pc) { toast('Για να αλλάξεις ώρα γονέων, διάλεξε «ΓΟΝ» πάνω από τον πίνακα'); return; }
   const td = e.target.closest('td[data-t]'); if (!td) return;
   const t = +td.dataset.t, s = +td.dataset.s, m = S.model;
   const a = S.assign[t];
@@ -880,6 +901,13 @@ $('grid').addEventListener('click', e => {
   savePlan(); render();
 });
 let armed = null;
+document.querySelectorAll('.mode button').forEach(b => b.addEventListener('click', () => {
+  S.mode = b.dataset.m; document.querySelectorAll('.mode button').forEach(x => x.setAttribute('aria-pressed', x === b));
+  $('hint').textContent = S.mode === 'par'
+    ? 'Κλικ σε κενό ή ΓΡ: βάζεις εκεί την ώρα γονέων του εκπαιδευτικού · κλικ σε ΓΟΝ: το βγάζεις · μένει και στη Νέα κατανομή'
+    : 'Κλικ σε οποιοδήποτε κενό: βάζεις ΓΡ χειροκίνητα, ακόμα κι αν η ώρα έχει ήδη · κλικ σε ΓΡ: το βγάζεις';
+  if (S.model) renderGrid();
+}));
 $('run').addEventListener('click', () => {
   const b = $('run');
   if (!S.model) return;
