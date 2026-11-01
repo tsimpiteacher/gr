@@ -1155,9 +1155,9 @@ function dropNotes(ws){
     if (c._comment || (vm && vm.comment)) { c._comment = undefined; if (vm) delete vm.comment; }
   }));
 }
-// Το Excel του ΓΡ στέλνεται στους συναδέλφους: χωρίς χρώματα, εκτός από γκρι (απόντες της Συμπύκνωσης)
-// και κίτρινο (κενά που δημιούργησε η Συμπύκνωση). Γράμματα μαύρα, χωρίς μορφοποίηση υπό όρους.
-const KEEP_FILLS = new Set(['FFBFBFBF', 'FFFFFF00']);
+// Το Excel του ΓΡ στέλνεται στους συναδέλφους: καθόλου χρώματα (ο χρήστης τα βάζει χειροκίνητα).
+// Γράμματα μαύρα, χωρίς γεμίσματα και χωρίς μορφοποίηση υπό όρους.
+const KEEP_FILLS = new Set();
 function decolor(ws){
   ws.conditionalFormattings = [];
   ws.eachRow({ includeEmpty:true }, row => row.eachCell({ includeEmpty:true }, c => {
