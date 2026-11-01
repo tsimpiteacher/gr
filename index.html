@@ -1155,10 +1155,24 @@ function dropNotes(ws){
     if (c._comment || (vm && vm.comment)) { c._comment = undefined; if (vm) delete vm.comment; }
   }));
 }
+// Το Excel του ΓΡ στέλνεται στους συναδέλφους: χωρίς χρώματα, εκτός από γκρι (απόντες της Συμπύκνωσης)
+// και κίτρινο (κενά που δημιούργησε η Συμπύκνωση). Γράμματα μαύρα, χωρίς μορφοποίηση υπό όρους.
+const KEEP_FILLS = new Set(['FFBFBFBF', 'FFFFFF00']);
+function decolor(ws){
+  ws.conditionalFormattings = [];
+  ws.eachRow({ includeEmpty:true }, row => row.eachCell({ includeEmpty:true }, c => {
+    const st = c.style || {}, ns = Object.assign({}, st), f = st.fill;
+    let ch = false;
+    if (f && (f.type === 'gradient' || (f.type === 'pattern' && f.pattern && f.pattern !== 'none' && !KEEP_FILLS.has(String((f.fgColor && f.fgColor.argb) || '').toUpperCase())))) { ns.fill = { type:'pattern', pattern:'none' }; ch = true; }
+    if (st.font && st.font.color) { ns.font = Object.assign({}, st.font); delete ns.font.color; ch = true; }
+    if (ch) c.style = ns;   // νέο αντικείμενο: το ExcelJS μοιράζει τα στυλ ανάμεσα σε κελιά
+  }));
+}
 async function buildExcelFile(){
   const wb = new ExcelJS.Workbook(); await wb.xlsx.load(S.buf.slice(0));
   dropNotes(wb.worksheets[0]);
   writeSheet(wb.worksheets[0], S.model, S.assign, S.quotas, S.parents);
+  decolor(wb.worksheets[0]);
   const out = await wb.xlsx.writeBuffer();
   return { name: S.fname.replace(/\.xlsx$/i, '') + '_ΓΡ.xlsx', blob: new Blob([out], { type:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' }) };
 }
