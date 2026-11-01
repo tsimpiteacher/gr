@@ -360,7 +360,7 @@ td.covX{color:var(--muted);font-weight:400}
       <details class="rulesbox" id="rulesbox" open>
       <summary class="label">Κανόνες <span id="rulescount"></span></summary>
       <div class="rules">
-        <label><input type="checkbox" id="r-par" checked> Μία ώρα γονέων την Τετάρτη (πράσινο, όχι 7η)</label>
+        <label><input type="checkbox" id="r-par" checked> Μία ώρα γονέων την Τετάρτη, πριν από τα ΓΡ και όσο πιο νωρίς γίνεται (πράσινο, όχι τελευταία ώρα)</label>
         <label><input type="checkbox" id="r-slot" checked> Το πολύ ένα ΓΡ την ίδια ώρα</label>
         <label><input type="checkbox" id="r-last" checked> Όχι ΓΡ στην τελευταία ώρα της ημέρας (7η)</label>
         <label><input type="checkbox" id="r-day" checked> Το πολύ ένα ΓΡ τη μέρα ανά εκπαιδευτικό (όσοι έχουν επιβάρυνση μπορούν και στην ίδια μέρα)</label>
@@ -688,7 +688,7 @@ function parentCandidates(model, t, avoid) {
   const between = free.filter(i => { const p = model.slots[i].period; return lessons.some(x => x < p) && lessons.some(x => x > p); });
   return between.length ? between.concat(free.filter(i => !between.includes(i))) : free;
 }
-// One parents hour per teacher, spread over the Wednesday periods. keep[t] >= 0 keeps a chosen slot.
+// One parents hour per teacher, as early as possible on Wednesday; placed before the ΓΡ, which then avoid it. keep[t] >= 0 keeps a chosen slot.
 function assignParents(model, opts = {}) {
   const rand = rng(opts.seed || Date.now());
   const keep = opts.keep || [], avoid = opts.avoid || [];
@@ -701,8 +701,8 @@ function assignParents(model, opts = {}) {
     const t = model.teachers[ti];
     const isBetween = i => { const p = model.slots[i].period, ls = model.slots.map((s, j) => j).filter(j => model.slots[j].day === PARENT_DAY && t.cells[j] === 'L').map(j => model.slots[j].period); return ls.some(x => x < p) && ls.some(x => x > p); };
     const pool = c.some(isBetween) ? c.filter(isBetween) : c;
-    let m = Infinity; pool.forEach(i => m = Math.min(m, load[i] || 0));
-    const best = pool.filter(i => (load[i] || 0) === m), pick = best[Math.floor(rand() * best.length)];
+    // όσο πιο νωρίς γίνεται («προς τα πάνω»): η νωρίτερη ελεύθερη ώρα ανάμεσα σε μαθήματα, αλλιώς η νωρίτερη ελεύθερη
+    const pick = pool.reduce((x, i) => model.slots[i].period < model.slots[x].period ? i : x);
     out[ti] = pick; load[pick] = (load[pick] || 0) + 1;
   });
   return out;
@@ -867,9 +867,14 @@ async function loadBuffer(buf, name, plan){
       S.locked = m.teachers.map(() => []);   // «Νέα κατανομή» may replace them (unless «Κράτα τα ΓΡ» is on)
       S.quotas = S.quotas.map((q, i) => m.teachers[i].staff ? 0 : Math.max(q, S.assign[i].length));
       const fp = m.teachers.map(t => t.fileParent);
-      if (fp.some(x => x >= 0)) setParents(fp); else newParents(S.assign);
-      S.elig = eligNow(); S.dirty = false; savePlan(); render();
-      toast('Φορτώθηκαν τα ΓΡ που υπάρχουν στο αρχείο');
+      let moved = 0;
+      if (fp.some(x => x >= 0)) setParents(fp);
+      else {   // οι γονείς προηγούνται: όποιο ΓΡ του αρχείου πέφτει στην ώρα γονέων βγαίνει
+        newParents(S.locked);
+        S.assign = S.assign.map((a, i) => a.filter(x => x !== S.parents[i] || (moved++, false)));
+      }
+      S.elig = eligNow(); S.dirty = moved > 0; savePlan(); render();
+      toast('Φορτώθηκαν τα ΓΡ που υπάρχουν στο αρχείο' + (moved ? ` · ${moved} ΓΡ έδωσαν τη θέση τους σε ώρα γονέων — πάτα «Νέα κατανομή» για να ξαναμπούν` : ''));
     } else run();
   } catch(e) { showError('Δεν μπόρεσα να διαβάσω το αρχείο: ' + (e.message || e) + ' Βεβαιώσου ότι είναι .xlsx με εκπαιδευτικούς στη στήλη Α και τις ημέρες στην επικεφαλίδα.'); }
 }
@@ -890,14 +895,15 @@ function fixedSets(){
   const m = S.model, r = rules();
   return m.teachers.map((t,ti) => {
     const f = new Set(S.locked[ti]);
-    if (r.keepExisting) t.cells.forEach((c,i) => { if (c === 'G') f.add(i); });
+    // ΓΡ του αρχείου κρατιούνται, εκτός αν πέφτουν πάνω στην ώρα γονέων (οι γονείς προηγούνται)
+    if (r.keepExisting) t.cells.forEach((c,i) => { if (c === 'G' && S.parents[ti] !== i) f.add(i); });
     return [...f];
   });
 }
 function run(){
   if (!S.model) return;
-  const fx = fixedSets();
-  newParents(fx);
+  newParents(S.locked);            // πρώτα οι ώρες γονέων (αποφεύγουν μόνο τα ΓΡ που κλείδωσες με το χέρι)
+  const fx = fixedSets();          // μετά τα ΓΡ
   const r = rules(), o = { fixed: fx, restarts: 80, seed: (Math.random()*1e9)|0 };
   const res = r.onePerSlot ? solveOnePerSlot(S.model, S.quotas, r, o) : solve(S.model, S.quotas, r, o);
   S.assign = res.assign; S.elig = res.elig; S.dirty = false;
