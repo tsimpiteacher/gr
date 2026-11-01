@@ -1122,6 +1122,30 @@ const drop = $('drop');
 ['dragleave','drop'].forEach(ev => drop.addEventListener(ev, e => { e.preventDefault(); if (ev === 'dragleave' && drop.contains(e.relatedTarget)) return; drop.classList.remove('over'); }));
 drop.addEventListener('drop', async e => { const f = e.dataTransfer.files[0]; if (f && /\.xlsx$/i.test(f.name)) loadUser(await f.arrayBuffer(), f.name); else if (f) showError('Χρειάζομαι αρχείο .xlsx.'); });
 
+/* «Αποθήκευση ως»: ρωτά πού θα σωθεί το αρχείο (Chrome/Edge). Όπου δεν υποστηρίζεται, κατεβαίνει στις Λήψεις.
+   Το παράθυρο ανοίγει πριν φτιαχτεί το αρχείο, ώστε ο browser να το επιτρέψει· όλες οι εφαρμογές της σουίτας
+   μοιράζονται το ίδιο id, άρα θυμούνται τον τελευταίο φάκελο. Επιστρέφει 'saved' | 'downloaded' | 'cancelled'. */
+const SAVE_TYPES = {
+  xlsx: { description: 'Βιβλίο Excel', accept: { 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet': ['.xlsx'] } },
+  docx: { description: 'Έγγραφο Word', accept: { 'application/vnd.openxmlformats-officedocument.wordprocessingml.document': ['.docx'] } },
+  zip: { description: 'Αρχείο ZIP', accept: { 'application/zip': ['.zip'] } },
+  json: { description: 'Αρχείο JSON', accept: { 'application/json': ['.json'] } },
+};
+async function saveAs(name, make) {
+  const type = SAVE_TYPES[(String(name).match(/\.(\w+)$/) || [])[1]];
+  let handle = null;
+  if (typeof window.showSaveFilePicker === 'function' && window.self === window.top) {
+    try { handle = await window.showSaveFilePicker({ suggestedName: name, id: 'suite-save', types: type ? [type] : undefined }); }
+    catch (e) { if (e && e.name === 'AbortError') return 'cancelled'; handle = null; }
+  }
+  const blob = await make();
+  if (handle) { try { const w = await handle.createWritable(); await w.write(blob); await w.close(); return 'saved'; } catch (e) { /* συνέχισε με απλή λήψη */ } }
+  const url = URL.createObjectURL(blob), a = document.createElement('a');
+  a.href = url; a.download = name; document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 4000);
+  return 'downloaded';
+}
+const SAVE_MSG = { saved: 'Αποθηκεύτηκε', downloaded: 'Κατέβηκε στις Λήψεις', cancelled: 'Η αποθήκευση ακυρώθηκε' };
 // Το Excel με τα ΓΡ ως αρχείο (χρησιμοποιείται και από τη «Λήψη όλων» της αρχικής σελίδας).
 async function buildExcelFile(){
   const wb = new ExcelJS.Workbook(); await wb.xlsx.load(S.buf.slice(0));
@@ -1140,11 +1164,10 @@ $('save').addEventListener('click', async () => {
   if (!S.model) return;
   const btn = $('save'); btn.disabled = true;
   try {
-    const { blob, name } = await buildExcelFile();
-    const url = URL.createObjectURL(blob), a = document.createElement('a');
-    a.href = url; a.download = name; document.body.appendChild(a); a.click(); a.remove();
-    setTimeout(() => URL.revokeObjectURL(url), 4000);
-    toast('Κατέβηκε: ' + name);
+    const name = S.fname.replace(/\.xlsx$/i, '') + '_ΓΡ.xlsx';
+    const r = await saveAs(name, async () => (await buildExcelFile()).blob);
+    toast(SAVE_MSG[r] + (r === 'cancelled' ? '' : ': ' + name));
+    if (r === 'cancelled') return;
     histRecord();
     try { localStorage.setItem('gr-saved-at', String(Date.now())); } catch(e) {}
   } catch(e) {
