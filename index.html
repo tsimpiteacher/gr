@@ -365,6 +365,7 @@ td.covX{color:var(--muted);font-weight:400}
         <label><input type="checkbox" id="r-last" checked> Όχι ΓΡ στην τελευταία ώρα της ημέρας (7η)</label>
         <label><input type="checkbox" id="r-day" checked> Το πολύ ένα ΓΡ τη μέρα ανά εκπαιδευτικό (όσοι έχουν επιβάρυνση μπορούν και στην ίδια μέρα)</label>
         <label><input type="checkbox" id="r-present" checked> Μόνο σε μέρα που ο εκπαιδευτικός έχει μάθημα</label>
+        <label><input type="checkbox" id="r-near" checked> Κοντά στο ωράριο του εκπαιδευτικού: σε κενό ανάμεσα σε μαθήματα ή στην ώρα αμέσως πριν έρθει / αμέσως αφού φύγει</label>
         <label><input type="checkbox" id="r-between"> Μόνο σε κενό ανάμεσα σε μαθήματα</label>
         <label><input type="checkbox" id="r-keep"> Κράτα τα ΓΡ που υπάρχουν ήδη στο αρχείο</label>
         <label><input type="checkbox" id="r-duty" checked> Όχι ΓΡ σε μέρα που ο εκπαιδευτικός έχει εφημερία (όπου γίνεται) <span class="efinfo" id="dutyinfo"></span></label>
@@ -540,7 +541,22 @@ function eligible(model, t, rules) {
   }
   return out;
 }
+// Ώρες «κοντά» στο ωράριο της μέρας: κενό ανάμεσα σε μαθήματα, ή η ώρα ακριβώς πριν την πρώτη / ακριβώς μετά την τελευταία.
+// Η ώρα γονέων μετράει ως παρουσία στο σχολείο.
+function nearPeriods(model, t, day) {
+  const pres = model.slots.map((s, i) => (s.day === day && (t.cells[i] === 'L' || t.parent === i)) ? s.period : null).filter(p => p != null);
+  if (!pres.length) return null;
+  const lo = Math.min(...pres), hi = Math.max(...pres);
+  return p => (p > lo && p < hi) || p === lo - 1 || p === hi + 1;
+}
 function eligibleBase(model, t, rules) {
+  if (rules.onlyNear) {
+    const strict = eligibleBase(model, t, Object.assign({}, rules, { onlyNear: false }));
+    const near = {};
+    const f = strict.filter(i => { const d = model.slots[i].day; if (!(d in near)) near[d] = nearPeriods(model, t, d); return near[d] && near[d](model.slots[i].period); });
+    // αν δεν υπάρχει καμία τέτοια ώρα όλη την εβδομάδα, ο εκπαιδευτικός δεν μένει χωρίς ΓΡ
+    return f.length ? f : strict;
+  }
   const out = [];
   const lessonsByDay = {};
   model.slots.forEach((s, i) => { if (t.cells[i] === 'L') (lessonsByDay[s.day] = lessonsByDay[s.day] || []).push(s.period); });
@@ -824,7 +840,7 @@ const store = {
   set(v){ try { localStorage.setItem('gr-settings-v1', JSON.stringify(v)); } catch(e){} }
 };
 let saved = store.get();
-const ruleIds = { parentsHour:'r-par', onePerSlot:'r-slot', noLastPeriod:'r-last', onePerDay:'r-day', onlyTeachingDays:'r-present', onlyBetween:'r-between', keepExisting:'r-keep', efEx:'r-efex', avoidDuty:'r-duty', rotate:'r-rotate' };
+const ruleIds = { parentsHour:'r-par', onePerSlot:'r-slot', noLastPeriod:'r-last', onePerDay:'r-day', onlyTeachingDays:'r-present', onlyBetween:'r-between', onlyNear:'r-near', keepExisting:'r-keep', efEx:'r-efex', avoidDuty:'r-duty', rotate:'r-rotate' };
 if (saved.rules) for (const k in ruleIds) if (k in saved.rules) $(ruleIds[k]).checked = !!saved.rules[k];
 const rules = () => { const r = {}; for (const k in ruleIds) r[k] = $(ruleIds[k]).checked; return r; };
 function persist(){
