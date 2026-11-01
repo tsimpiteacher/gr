@@ -1158,7 +1158,7 @@ function dropNotes(ws){
 // Το Excel του ΓΡ στέλνεται στους συναδέλφους: καθόλου χρώματα (ο χρήστης τα βάζει χειροκίνητα).
 // Γράμματα μαύρα, χωρίς γεμίσματα, χωρίς μορφοποίηση υπό όρους, όλα στοιχισμένα στο κέντρο.
 const KEEP_FILLS = new Set();
-function decolor(ws){
+function decolor(ws, nameRows){   // nameRows: γραμμές εκπαιδευτικών· τα ονόματά τους (στήλη Α) στοιχίζονται αριστερά
   ws.conditionalFormattings = [];
   ws.eachRow({ includeEmpty:true }, row => row.eachCell({ includeEmpty:true }, c => {
     const st = c.style || {}, ns = Object.assign({}, st), f = st.fill;
@@ -1166,8 +1166,8 @@ function decolor(ws){
     if (f && (f.type === 'gradient' || (f.type === 'pattern' && f.pattern && f.pattern !== 'none' && !KEEP_FILLS.has(String((f.fgColor && f.fgColor.argb) || '').toUpperCase())))) { ns.fill = { type:'pattern', pattern:'none' }; ch = true; }
     if (st.font && st.font.color) { ns.font = Object.assign({}, st.font); delete ns.font.color; ch = true; }
     // όλα τα κελιά στοιχισμένα στο κέντρο, οριζόντια και κάθετα (κρατά την αναδίπλωση/περιστροφή αν υπάρχει)
-    const al = st.alignment || {};
-    if (al.horizontal !== 'center' || al.vertical !== 'middle') { ns.alignment = Object.assign({}, al, { horizontal:'center', vertical:'middle' }); ch = true; }
+    const al = st.alignment || {}, h = c.col === 1 && nameRows && nameRows.has(+c.row) ? 'left' : 'center';
+    if (al.horizontal !== h || al.vertical !== 'middle') { ns.alignment = Object.assign({}, al, { horizontal:h, vertical:'middle' }); ch = true; }
     if (ch) c.style = ns;   // νέο αντικείμενο: το ExcelJS μοιράζει τα στυλ ανάμεσα σε κελιά
   }));
 }
@@ -1175,7 +1175,7 @@ async function buildExcelFile(){
   const wb = new ExcelJS.Workbook(); await wb.xlsx.load(S.buf.slice(0));
   dropNotes(wb.worksheets[0]);
   writeSheet(wb.worksheets[0], S.model, S.assign, S.quotas, S.parents);
-  decolor(wb.worksheets[0]);
+  decolor(wb.worksheets[0], new Set(S.model.teachers.map(t => t.row)));
   const out = await wb.xlsx.writeBuffer();
   return { name: S.fname.replace(/\.xlsx$/i, '') + '_ΓΡ.xlsx', blob: new Blob([out], { type:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' }) };
 }
