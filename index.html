@@ -1147,8 +1147,17 @@ async function saveAs(name, make) {
 }
 const SAVE_MSG = { saved: 'Αποθηκεύτηκε', downloaded: 'Κατέβηκε στις Λήψεις', cancelled: 'Η αποθήκευση ακυρώθηκε' };
 // Το Excel με τα ΓΡ ως αρχείο (χρησιμοποιείται και από τη «Λήψη όλων» της αρχικής σελίδας).
+// Σημειώσεις κελιών μαζί με τις μπάρες δεδομένων των στατιστικών: το ExcelJS γράφει το <legacyDrawing> μετά το <extLst>
+// και το Excel βγάζει «πρόβλημα με ορισμένο περιεχόμενο». Γι' αυτό το αρχείο του ΓΡ βγαίνει χωρίς σημειώσεις.
+function dropNotes(ws){
+  ws.eachRow({ includeEmpty:true }, row => row.eachCell({ includeEmpty:true }, c => {
+    const vm = c._value && c._value.model;
+    if (c._comment || (vm && vm.comment)) { c._comment = undefined; if (vm) delete vm.comment; }
+  }));
+}
 async function buildExcelFile(){
   const wb = new ExcelJS.Workbook(); await wb.xlsx.load(S.buf.slice(0));
+  dropNotes(wb.worksheets[0]);
   writeSheet(wb.worksheets[0], S.model, S.assign, S.quotas, S.parents);
   const out = await wb.xlsx.writeBuffer();
   return { name: S.fname.replace(/\.xlsx$/i, '') + '_ΓΡ.xlsx', blob: new Blob([out], { type:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' }) };
