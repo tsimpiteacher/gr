@@ -1302,8 +1302,10 @@ function ttUsed(){ try { return +localStorage.getItem(TT_USED) || 0; } catch(e) 
 function ttMarkUsed(at){ try { localStorage.setItem(TT_USED, String(at)); } catch(e) {} }
 function ttShare(buf, name){
   const at = Date.now();
-  try { localStorage.setItem(TT_KEY, JSON.stringify({ fname:name, at, from:'gr', file:toB64(buf) })); } catch(e) { /* γεμάτος χώρος: απλώς δεν μοιράζεται */ }
+  const t = { fname:name, at, from:'gr', file:toB64(buf) };
+  try { localStorage.setItem(TT_KEY, JSON.stringify(t)); } catch(e) { /* γεμάτος χώρος: απλώς δεν μοιράζεται */ }
   ttMarkUsed(at); renderTT();
+  if (window.onTTShared) window.onTTShared(t);
 }
 async function loadUser(buf, name){ await loadBuffer(buf, name); if (S.buf === buf) ttShare(buf, name); }
 function whenLabel(t){
@@ -1508,6 +1510,23 @@ if ('serviceWorker' in navigator) window.addEventListener('load', () => navigato
   }
   // ποτέ μην ανεβάσεις κατανομή παλιότερη από αυτή που υπάρχει ήδη στο cloud
   window.onPlanSaved = plan => { if (user && (plan.at || 0) >= lastRemoteAt) { setBtn('☁ Αποθήκευση…', 'on'); push(plan); } };
+  // ---- Κοινό ωρολόγιο πρόγραμμα σε όλους τους υπολογιστές: όποιο ανέβηκε τελευταίο (σε Εφημερίες ή ΓΡ) έρχεται εδώ ----
+  let ttRef = null, ttUnsub = null;
+  const ttPush = t => { if (ttRef && t && t.file) ttRef.set({ fname: t.fname || '', at: t.at || Date.now(), from: t.from || 'gr', file: t.file }).catch(() => {}); };
+  window.onTTShared = t => ttPush(t);
+  async function ttFromCloud(remote){
+    const mine = ttRead();
+    if (!remote || !remote.file) { if (mine) ttPush(mine); return; }
+    if (mine && (mine.at || 0) >= (remote.at || 0)) { if ((mine.at || 0) > (remote.at || 0)) ttPush(mine); return; }
+    try { localStorage.setItem(TT_KEY, JSON.stringify(remote)); } catch(e) {}
+    if (window.suiteReady) await window.suiteReady;
+    if (!S.model || !S.buf || toB64(S.buf) !== remote.file) {   // η κατανομή εδώ είναι σε άλλο (παλιότερο) πρόγραμμα
+      ttMarkUsed(remote.at);
+      await loadBuffer(fromB64(remote.file), remote.fname || 'Πρόγραμμα.xlsx');
+      toast('Νέο πρόγραμμα από άλλον υπολογιστή: ' + (remote.fname || '') + ' · νέα κατανομή ΓΡ');
+    }
+    renderTT();
+  }
 
   Promise.all([load(base + 'firebase-app-compat.js')])
     .then(() => Promise.all([load(base + 'firebase-auth-compat.js'), load(base + 'firebase-firestore-compat.js')]))
@@ -1516,8 +1535,12 @@ if ('serviceWorker' in navigator) window.addEventListener('load', () => navigato
       const auth = firebase.auth(), db = firebase.firestore();
       auth.onAuthStateChanged(u => {
         user = u; if (unsub) { unsub(); unsub = null; } ref = null;
+        if (!u && ttUnsub) { ttUnsub(); ttUnsub = null; ttRef = null; }
         if (!u) { setBtn('☁ Σύνδεση για συγχρονισμό', '', 'Σύνδεση με Google για να βλέπεις την ίδια κατανομή σε όλες τις συσκευές'); return; }
         ref = db.collection('users').doc(u.uid).collection('gr').doc('plan');
+        if (ttUnsub) { ttUnsub(); ttUnsub = null; }
+        ttRef = db.collection('users').doc(u.uid).collection('gr').doc('timetable');
+        ttUnsub = ttRef.onSnapshot(s => { if (!s.metadata.hasPendingWrites) ttFromCloud(s.exists ? s.data() : null); }, () => {});
         setBtn('☁ ' + (u.email || 'Συνδεδεμένο'), 'on', 'Συγχρονισμένο. Κλικ για αποσύνδεση.');
         let first = true;
         unsub = ref.onSnapshot(snap => {
