@@ -204,21 +204,22 @@ td.covX{color:var(--muted);font-weight:400}
   <div class="sbar-seg" role="group" aria-label="Εναλλαγή εφαρμογής">
     <a class="sbar-opt sy" href="../sympyknosi/" data-to="sy">
       <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="2.5" y="3.5" width="13" height="17" rx="2.5"/><path d="M2.5 9.2h13M2.5 14.8h13M9 3.5v17"/><path d="M20 20.5V6.5M17 9.5l3-3 3 3"/></svg>
-      <span class="l">Συμπύκνωση</span><span class="s">Συμπ.</span>
+      <b class="sn">1</b><span class="l">Συμπύκνωση</span><span class="s">Συμπ.</span>
     </a>
 <a class="sbar-opt ef" href="../efimeries/" data-to="ef">
       <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="4.5" width="18" height="16.5" rx="2.5"/><path d="M3 9.5h18M8 3v3.5M16 3v3.5"/></svg>
-      <span class="l">Εφημερίες</span><span class="s">Εφημ.</span>
+      <b class="sn">2</b><span class="l">Εφημερίες</span><span class="s">Εφημ.</span>
     </a>
 <a class="sbar-opt gr" href="../gr/" data-to="gr">
       <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="3.5" width="18" height="17" rx="2.5"/><path d="M3 9h18M9 9v11.5M15 9v11.5"/></svg>
-      <span>ΓΡ</span>
+      <b class="sn">3</b><span>ΓΡ</span>
     </a>
 <a class="sbar-opt an" href="../anaplirwseis/" data-to="an">
       <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="9" cy="8" r="3.2"/><path d="M3.5 19.5a5.5 5.5 0 0 1 11 0"/><path d="M16 7.5h5M18.5 5v5"/></svg>
-      <span class="l">Αναπληρώσεις</span><span class="s">Αναπλ.</span>
+      <b class="sn">4</b><span class="l">Αναπληρώσεις</span><span class="s">Αναπλ.</span>
     </a>
   </div>
+  <a class="sbar-next" id="sbarNext" href="../" hidden><span class="nl"></span><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12h14M13 6l6 6-6 6"/></svg></a>
   </div>
 </nav>
 <style>
@@ -268,6 +269,16 @@ td.covX{color:var(--muted);font-weight:400}
   .sbar-opt.an[aria-current="page"]{background:var(--sb-an);}
   .sbar-opt.sy[aria-current="page"]{background:var(--sb-sy);}
   .sbar-opt .s{display:none;}
+  .sbar-opt .sn{display:inline-grid; place-items:center; width:18px; height:18px; border-radius:50%; font-size:11px; background:var(--sb-track); color:inherit;}
+  .sbar-opt[aria-current="page"] .sn{background:rgba(255,255,255,.28);}
+  .sbar-opt svg{display:none;}
+  .sbar-next{display:inline-flex; align-items:center; gap:6px; padding:8px 12px; border-radius:10px; background:var(--sb-ink); color:var(--sb-bg) !important; font-weight:700; white-space:nowrap;}
+  :root[data-theme="dark"] .sbar-next{background:#E8EDF5; color:#0D1410 !important;}
+  @media (prefers-color-scheme: dark){ :root:not([data-theme="light"]) .sbar-next{background:#E8EDF5; color:#0D1410 !important;} }
+  .sbar-next:hover{filter:brightness(1.15);}
+  .sbar-next[hidden]{display:none;}
+  @media (max-width:980px){ .sbar-next .nl{display:none;} .sbar-next{padding:8px 10px;} }
+  @media (max-width:560px){ .sbar-opt:not([aria-current]) span:not(.sn){display:none;} .sbar-ver{display:none;} .sbar-opt{padding:7px 6px;} .sbar-right{gap:4px;} }
   @media (max-width:900px){ .sbar-opt{padding:7px 10px;} }
   @media (max-width:760px){ .sbar-opt .l{display:none;} .sbar-opt .s{display:inline;} .sbar-opt{padding:7px 9px; gap:5px;} .sbar-opt svg{display:none;} }
   .sbar a:focus-visible{outline:2px solid var(--sb-ink); outline-offset:2px;}
@@ -287,6 +298,14 @@ td.covX{color:var(--muted);font-weight:400}
     cur.addEventListener('click', function (e) { e.preventDefault(); });
   }
   try { localStorage.setItem('suite-last-app', app); } catch (e) { /* αγνόησε */ }
+  // ---- Επόμενο βήμα της εβδομάδας: Συμπύκνωση → Εφημερίες → ΓΡ → Αναπληρώσεις → (αρχική: λήψη όλων) ----
+  // Μια εφαρμογή μπορεί να ορίσει window.suiteNext(href) για να ετοιμάσει πρώτα κάτι (π.χ. η Συμπύκνωση το πρόγραμμα).
+  var NEXT = { sy: ['../efimeries/?from=sy', 'Επόμενο: Εφημερίες'], ef: ['../gr/?from=ef', 'Επόμενο: ΓΡ'], gr: ['../anaplirwseis/?from=gr', 'Επόμενο: Αναπληρώσεις'], an: ['../#week', 'Τέλος: Λήψη όλων'] };
+  var nx = document.getElementById('sbarNext');
+  if (nx && NEXT[app]) {
+    nx.href = NEXT[app][0]; nx.querySelector('.nl').textContent = NEXT[app][1]; nx.title = NEXT[app][1]; nx.hidden = false;
+    nx.addEventListener('click', function (e) { if (typeof window.suiteNext === 'function') { e.preventDefault(); window.suiteNext(nx.href); } });
+  }
   // Προφόρτωση της άλλης εφαρμογής μόλις ο δείκτης/δάχτυλο πάει στο κουμπί, για άμεση εναλλαγή.
   var done = false;
   function prefetch() {
@@ -321,11 +340,19 @@ td.covX{color:var(--muted);font-weight:400}
 
   // ---- Νέα έκδοση: όταν ανέβει ενημέρωση ενώ η εφαρμογή είναι ανοιχτή ----
   var ub = document.getElementById('sbarUpd');
+  // Αυτόματη ανανέωση σε νέα έκδοση (μία φορά ανά λίγα λεπτά, ώστε να μη γίνει ποτέ κύκλος). Τα δεδομένα σώζονται μόνα τους.
+  function autoReload(why) {
+    var k = 'suite-auto-reload:' + location.pathname, t = 0;
+    try { t = +sessionStorage.getItem(k) || 0; } catch (e) { return false; }
+    if (Date.now() - t < 5 * 60 * 1000) return false;
+    try { sessionStorage.setItem(k, String(Date.now())); } catch (e) { return false; }
+    location.reload(); return true;
+  }
   if ('serviceWorker' in navigator && ub) {
     var oldUrl = navigator.serviceWorker.controller && navigator.serviceWorker.controller.scriptURL;
     navigator.serviceWorker.addEventListener('controllerchange', function () {
       var c = navigator.serviceWorker.controller;
-      if (oldUrl && c && c.scriptURL === oldUrl) ub.hidden = false;   // ίδια εφαρμογή, νεότερη έκδοση
+      if (oldUrl && c && c.scriptURL === oldUrl && !autoReload('sw')) ub.hidden = false;   // ίδια εφαρμογή, νεότερη έκδοση
       oldUrl = oldUrl || (c && c.scriptURL);
     });
     ub.addEventListener('click', function () { location.reload(); });
@@ -361,7 +388,12 @@ td.covX{color:var(--muted);font-weight:400}
       }).catch(function () { show('Χωρίς σύνδεση', '', 2500); });
     });
     // αθόρυβος έλεγχος στο άνοιγμα και όταν η εφαρμογή ξαναγίνεται ορατή
-    var quiet = function () { latest().then(function (srv) { if (newer(srv)) show('Νέα έκδοση ' + fmt(srv) + ' · Ανανέωση', 'new'); }).catch(function () {}); };
+    var quiet = function () { latest().then(function (srv) {
+      if (!newer(srv)) return;
+      var k = 'suite-auto-reload:' + location.pathname, t = 0; try { t = +sessionStorage.getItem(k) || 0; } catch (e) {}
+      if (Date.now() - t > 5 * 60 * 1000) { try { sessionStorage.setItem(k, String(Date.now())); } catch (e) {} go(); }   // νεότερη έκδοση: ανανέωση μόνη της
+      else show('Νέα έκδοση ' + fmt(srv) + ' · Ανανέωση', 'new');
+    }).catch(function () {}); };
     quiet();
     document.addEventListener('visibilitychange', function () { if (!document.hidden) quiet(); });
   }
@@ -381,7 +413,6 @@ td.covX{color:var(--muted);font-weight:400}
       <button id="sync" type="button" class="sync" hidden>☁ Συγχρονισμός</button>
       <button id="run" class="primary" type="button">Νέα κατανομή</button>
       <button id="save" type="button">Αποθήκευση Excel</button>
-      <a class="btn" id="toAn" href="../anaplirwseis/" style="text-decoration:none" title="Βήμα 4: κάλυψη των κενών που άφησε η Συμπύκνωση και των απουσιών της τελευταίας στιγμής">Συνέχεια στις Αναπληρώσεις →</a>
     </div>
   </header>
 
@@ -936,7 +967,16 @@ function lockedParents(){
   if (!S.model) return [];
   return S.model.teachers.map((t, i) => S.parentLocked[i] && S.parents[i] >= 0 ? { name: t.name, day: S.model.slots[S.parents[i]].day, period: S.model.slots[S.parents[i]].period } : null).filter(Boolean);
 }
-async function loadBuffer(buf, name, plan, keepPar){
+// ΓΡ που κλείδωσες με το χέρι, ως «όνομα/μέρα/ώρα»: κρατιούνται όταν έρχεται νέο πρόγραμμα της ίδιας εβδομάδας.
+function lockedGr(){
+  if (!S.model) return [];
+  const out = [];
+  S.model.teachers.forEach((t, i) => (S.locked[i] || []).forEach(si => out.push({ name: t.name, day: S.model.slots[si].day, period: S.model.slots[si].period })));
+  return out;
+}
+// Ταυτότητα εβδομάδας του κοινού προγράμματος (η Συμπύκνωση γράφει το αρχικό στο sy.baseAt).
+const ttWeek = t => t ? (t.from === 'sy' && t.sy && t.sy.baseAt ? t.sy.baseAt : t.at) : 0;
+async function loadBuffer(buf, name, plan, keepPar, keepGr){
   showError('');
   if (!window.ExcelJS) { showError('Η βιβλιοθήκη για τα αρχεία Excel δεν φόρτωσε. Κλείσε και ξανάνοιξε την εφαρμογή ή πάτα Ctrl+Shift+R. Χρειάζεται σύνδεση στο internet την πρώτη φορά.'); return; }
   try {
@@ -953,6 +993,14 @@ async function loadBuffer(buf, name, plan, keepPar){
       if (ti >= 0 && si >= 0 && m.teachers[ti].cells[si] !== 'L' && !(m.teachers[ti].off && m.teachers[ti].off[si])) { S.parents[ti] = si; S.parentLocked[ti] = true; }
     });
     m.teachers.forEach((t, i) => t.parent = S.parents[i]);
+    S.week = plan && plan.week ? plan.week : S.week;
+    (keepGr || []).forEach(k => {
+      const ti = m.teachers.findIndex(t => t.name === k.name), si = m.slots.findIndex(s => s.day === k.day && s.period === k.period);
+      if (ti < 0 || si < 0) return;
+      const t = m.teachers[ti];
+      if (t.cells[si] !== 'L' && !(t.off && t.off[si]) && !t.blockedDays.includes(k.day) && S.parents[ti] !== si && !S.locked[ti].includes(si)) S.locked[ti].push(si);
+    });
+    const keptGr = S.locked.map(a => a.slice());   // τα κλειδωμένα που ήρθαν από το προηγούμενο πρόγραμμα της ίδιας εβδομάδας
     const fits = a => Array.isArray(a) && a.length === m.teachers.length && a.every(x => Array.isArray(x) && x.every(i => Number.isInteger(i) && i >= 0 && i < m.slots.length));
     const restore = plan && fits(plan.assign) && fits(plan.locked);
     if (restore && Array.isArray(plan.quotas) && plan.quotas.length === m.teachers.length) S.quotas = plan.quotas.map(x => Math.max(0, Math.min(5, x | 0)));
@@ -970,7 +1018,8 @@ async function loadBuffer(buf, name, plan, keepPar){
     } else if (m.teachers.some(t => t.cells.includes('G'))) {
       // the file already has ΓΡ (e.g. saved from another device): show them as they are
       S.assign = m.teachers.map(t => t.cells.map((c, i) => c === 'G' ? i : -1).filter(i => i >= 0));
-      S.locked = m.teachers.map(() => []);   // «Νέα κατανομή» may replace them (unless «Κράτα τα ΓΡ» is on)
+      S.locked = keptGr.map(a => a.slice());   // «Νέα κατανομή» may replace them (unless «Κράτα τα ΓΡ» is on) — όχι όσα κλείδωσες
+      S.assign = S.assign.map((a, i) => [...new Set(a.concat(S.locked[i]))]);
       S.quotas = S.quotas.map((q, i) => m.teachers[i].staff ? 0 : Math.max(q, S.assign[i].length));
       const fp = m.teachers.map(t => t.fileParent);
       let moved = 0;
@@ -1024,7 +1073,7 @@ function fromB64(s){ const bin = atob(s), u = new Uint8Array(bin.length); for (l
 function savePlan(auto){
   if (!S.model) return;
   if (!auto || !S.savedAt) S.savedAt = Date.now();
-  const plan = { fname:S.fname, file:toB64(S.buf), assign:S.assign, locked:S.locked, parents:S.parents, parentLocked:S.parentLocked, quotas:S.quotas, efEx:S.efEx || null, dirty:!!S.dirty, settings:saved, at:S.savedAt };
+  const plan = { fname:S.fname, file:toB64(S.buf), assign:S.assign, locked:S.locked, parents:S.parents, parentLocked:S.parentLocked, quotas:S.quotas, efEx:S.efEx || null, dirty:!!S.dirty, settings:saved, at:S.savedAt, week:S.week || null };
   try { localStorage.setItem(PLAN_KEY, JSON.stringify(plan)); } catch(e) {}
   if (window.onPlanSaved) window.onPlanSaved(plan);
 }
@@ -1330,20 +1379,30 @@ function whenLabel(t){
   return `${day} ${p(d.getHours())}:${p(d.getMinutes())}`;
 }
 const escH = s => String(s).replace(/[&<>"]/g, c => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;' }[c]));
-const TT_FROM = { ef:'τις Εφημερίες', sy:'τη Συμπύκνωση', an:'τις Αναπληρώσεις' };
+const TT_FROM = { ef:'τις Εφημερίες', sy:'τη Συμπύκνωση', an:'τις Αναπληρώσεις', hub:'την αρχική («Νέα εβδομάδα»)' };
 // Ήρθαμε από το «Συνέχεια στο ΓΡ» των Εφημεριών: το νέο πρόγραμμα της εβδομάδας φορτώνεται χωρίς ερώτηση.
 const ttAuto = /[?&]from=(ef|sy)\b/.test(location.search);
 if (ttAuto) try { history.replaceState(null, '', location.pathname + location.hash); } catch(e) {}
+// Νέο πρόγραμμα από προηγούμενο βήμα: φορτώνεται μόνο του. Αν είναι η ίδια εβδομάδα, μένουν τα ΓΡ και οι ώρες γονέων
+// που όρισες με το χέρι (όσα χωράνε ακόμα)· τα υπόλοιπα ξαναμοιράζονται.
+let ttLoading = false;
 async function ttAutoLoad(){
   const t = ttRead();
-  if (!ttAuto || !t || t.from === 'gr' || (S.model && t.at <= ttUsed())) return;
-  ttMarkUsed(t.at);
-  await loadBuffer(fromB64(t.file), t.fname || 'Πρόγραμμα.xlsx', null, lockedParents());
-  toast('Φορτώθηκε το πρόγραμμα από ' + (TT_FROM[t.from] || 'άλλη εφαρμογή') + ' · νέα κατανομή ΓΡ');
+  if (ttLoading || !t || t.from === 'gr' || (S.model && t.at <= ttUsed())) return;
+  ttLoading = true;
+  try {
+    const wk = ttWeek(t), same = !!S.model && (S.week ? S.week === wk : (t.from === 'sy' && !t.newWeek));
+    const kp = same ? lockedParents() : [], kg = same ? lockedGr() : [];
+    ttMarkUsed(t.at);
+    await loadBuffer(fromB64(t.file), t.fname || 'Πρόγραμμα.xlsx', null, kp, kg);
+    S.week = wk; savePlan(true);
+    toast('Ενημερώθηκε από ' + (TT_FROM[t.from] || 'άλλη εφαρμογή') + (kp.length || kg.length ? ` · κρατήθηκαν ${kg.length} ΓΡ και ${kp.length} ώρες γονέων που όρισες` : ' · νέα κατανομή ΓΡ'));
+  } finally { ttLoading = false; }
 }
 function renderTT(){
   const t = ttRead();
   const show = !!t && t.from !== 'gr' && (t.at > ttUsed() || !S.model);
+  if (show) { ['tt', 'tt2'].forEach(id => { const el = $(id); if (el) { el.hidden = true; el.innerHTML = ''; } }); ttAutoLoad(); return; }
   ['tt', 'tt2'].forEach(id => {
     const el = $(id); if (!el) return;
     el.hidden = !show; if (!show) { el.innerHTML = ''; return; }
@@ -1528,7 +1587,7 @@ if ('serviceWorker' in navigator) window.addEventListener('load', () => navigato
   window.onPlanSaved = plan => { if (user && (plan.at || 0) >= lastRemoteAt) { setBtn('☁ Αποθήκευση…', 'on'); push(plan); } };
   // ---- Κοινό ωρολόγιο πρόγραμμα σε όλους τους υπολογιστές: όποιο ανέβηκε τελευταίο (σε Εφημερίες ή ΓΡ) έρχεται εδώ ----
   let ttRef = null, ttUnsub = null;
-  const ttPush = t => { if (ttRef && t && t.file) ttRef.set({ fname: t.fname || '', at: t.at || Date.now(), from: t.from || 'gr', file: t.file }).catch(() => {}); };
+  const ttPush = t => { if (ttRef && t && t.file) ttRef.set({ fname: t.fname || '', at: t.at || Date.now(), from: t.from || 'gr', file: t.file, sy: t.sy || null, newWeek: !!t.newWeek }).catch(() => {}); };
   window.onTTShared = t => ttPush(t);
   // Η εβδομάδα του προγράμματος μιας κατανομής (από την ημερομηνία στις πρώτες γραμμές του Excel, π.χ. «από 02/11/2026»).
   // Κατανομή για νεότερη εβδομάδα κερδίζει πάντα, όποια ώρα κι αν αποθηκεύτηκε.
