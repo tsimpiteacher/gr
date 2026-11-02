@@ -951,7 +951,7 @@ async function loadBuffer(buf, name, plan){
     if (restore) {
       S.assign = plan.assign.map(a => a.slice()); S.locked = plan.locked.map(a => a.slice());
       if (Array.isArray(plan.parents)) setParents(plan.parents); else newParents(S.assign);
-      S.elig = eligNow(); S.dirty = !!plan.dirty || !!efChanged; S.savedAt = plan.at || 0; if (efChanged) savePlan(); render();
+      S.elig = eligNow(); S.dirty = !!plan.dirty || !!efChanged; S.savedAt = plan.at || 0; if (efChanged) savePlan(true); render();
     } else if (m.teachers.some(t => t.cells.includes('G'))) {
       // the file already has ΓΡ (e.g. saved from another device): show them as they are
       S.assign = m.teachers.map(t => t.cells.map((c, i) => c === 'G' ? i : -1).filter(i => i >= 0));
@@ -1004,9 +1004,11 @@ function run(){
 const PLAN_KEY = 'gr-plan-v1';
 function toB64(buf){ const u = new Uint8Array(buf); let s = ''; for (let i = 0; i < u.length; i += 0x8000) s += String.fromCharCode.apply(null, u.subarray(i, i + 0x8000)); return btoa(s); }
 function fromB64(s){ const bin = atob(s), u = new Uint8Array(bin.length); for (let i = 0; i < bin.length; i++) u[i] = bin.charCodeAt(i); return u.buffer; }
-function savePlan(){
+// auto = αλλαγή που έγινε μόνη της (π.χ. στο άνοιγμα, από τις Εφημερίες): κρατά την ημερομηνία της κατανομής,
+// ώστε μια παλιά συσκευή να μην «πατάει» ποτέ πάνω σε νεότερη κατανομή του cloud.
+function savePlan(auto){
   if (!S.model) return;
-  S.savedAt = Date.now();
+  if (!auto || !S.savedAt) S.savedAt = Date.now();
   const plan = { fname:S.fname, file:toB64(S.buf), assign:S.assign, locked:S.locked, parents:S.parents, parentLocked:S.parentLocked, quotas:S.quotas, efEx:S.efEx || null, dirty:!!S.dirty, settings:saved, at:S.savedAt };
   try { localStorage.setItem(PLAN_KEY, JSON.stringify(plan)); } catch(e) {}
   if (window.onPlanSaved) window.onPlanSaved(plan);
@@ -1383,7 +1385,7 @@ function renderEfInfo(){
 function refreshEf(){
   if (!S.model) { renderEfInfo(); return; }
   const c = applyEfEx();
-  if (c) { S.dirty = true; persist(); savePlan(); toast(c + (c === 1 ? ' αλλαγή' : ' αλλαγές') + ' από τις εξαιρέσεις των Εφημεριών — πάτα «Νέα κατανομή» για να ξαναμοιραστούν'); }
+  if (c) { S.dirty = true; persist(); savePlan(true); toast(c + (c === 1 ? ' αλλαγή' : ' αλλαγές') + ' από τις εξαιρέσεις των Εφημεριών — πάτα «Νέα κατανομή» για να ξαναμοιραστούν'); }
   render();
 }
 $('r-efex').addEventListener('change', refreshEf);
@@ -1504,7 +1506,8 @@ if ('serviceWorker' in navigator) window.addEventListener('load', () => navigato
         .catch(e => setBtn('☁ Σφάλμα συγχρονισμού', 'err', String(e.message || e)));
     }, 1200);
   }
-  window.onPlanSaved = plan => { if (user) { setBtn('☁ Αποθήκευση…', 'on'); push(plan); } };
+  // ποτέ μην ανεβάσεις κατανομή παλιότερη από αυτή που υπάρχει ήδη στο cloud
+  window.onPlanSaved = plan => { if (user && (plan.at || 0) >= lastRemoteAt) { setBtn('☁ Αποθήκευση…', 'on'); push(plan); } };
 
   Promise.all([load(base + 'firebase-app-compat.js')])
     .then(() => Promise.all([load(base + 'firebase-auth-compat.js'), load(base + 'firebase-firestore-compat.js')]))
