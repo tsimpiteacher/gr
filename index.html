@@ -1514,14 +1514,43 @@ if ('serviceWorker' in navigator) window.addEventListener('load', () => navigato
   let ttRef = null, ttUnsub = null;
   const ttPush = t => { if (ttRef && t && t.file) ttRef.set({ fname: t.fname || '', at: t.at || Date.now(), from: t.from || 'gr', file: t.file }).catch(() => {}); };
   window.onTTShared = t => ttPush(t);
+  // Η εβδομάδα του προγράμματος μιας κατανομής (από την ημερομηνία στις πρώτες γραμμές του Excel, π.χ. «από 02/11/2026»).
+  // Κατανομή για νεότερη εβδομάδα κερδίζει πάντα, όποια ώρα κι αν αποθηκεύτηκε.
+  const weekCache = {};
+  async function weekOf(p){
+    if (!p || !p.file || !window.ExcelJS) return 0;
+    const k = (p.fname || '') + ':' + p.file.length + ':' + p.file.slice(-64);
+    if (k in weekCache) return weekCache[k];
+    let w = 0;
+    try {
+      const wb = new ExcelJS.Workbook(); await wb.xlsx.load(fromB64(p.file)); const ws = wb.worksheets[0];
+      for (let r = 1; r <= 4 && !w; r++) for (let c = 1; c <= 4 && !w; c++) {
+        const m = /(\d{1,2})[\/.\-](\d{1,2})[\/.\-](\d{4})/.exec(txt(ws.getCell(r, c).value));
+        if (m) w = new Date(+m[3], +m[2] - 1, +m[1]).getTime();
+      }
+    } catch(e) {}
+    return (weekCache[k] = w);
+  }
+  async function remoteWins(remote, mine){
+    if (!remote) return false; if (!mine) return true;
+    const wr = await weekOf(remote), wm = await weekOf(mine);
+    if (wr && wm && wr !== wm) return wr > wm;
+    return (remote.at || 0) > (mine.at || 0);
+  }
   async function ttFromCloud(remote){
     const mine = ttRead();
     if (!remote || !remote.file) { if (mine) ttPush(mine); return; }
-    if (mine && (mine.at || 0) >= (remote.at || 0)) { if ((mine.at || 0) > (remote.at || 0)) ttPush(mine); return; }
-    try { localStorage.setItem(TT_KEY, JSON.stringify(remote)); } catch(e) {}
+    if (mine && mine.file !== remote.file && !(await remoteWins(remote, mine))) { ttPush(mine); return; }
+    if (!mine || mine.file !== remote.file) try { localStorage.setItem(TT_KEY, JSON.stringify(remote)); } catch(e) {}
     if (window.suiteReady) await window.suiteReady;
-    if (!S.model || !S.buf || toB64(S.buf) !== remote.file) {   // η κατανομή εδώ είναι σε άλλο (παλιότερο) πρόγραμμα
+    const cur = S.buf ? { fname: S.fname, file: toB64(S.buf) } : null;
+    if (!S.model || !cur || (cur.file !== remote.file && await remoteWins(remote, Object.assign({ at: S.savedAt || 0 }, cur)))) {   // η κατανομή εδώ είναι σε παλιότερο πρόγραμμα
       ttMarkUsed(remote.at);
+      // αν ο άλλος υπολογιστής έχει ήδη κάνει κατανομή σε αυτό το πρόγραμμα, κράτα τη δική του (με τα ΓΡ του)
+      await new Promise(r => setTimeout(r, 3000));
+      let cp = null; try { const sn = ref && await ref.get(); cp = sn && sn.exists ? sn.data() : null; } catch(e) {}
+      if (cp && cp.file === remote.file) { lastRemoteAt = Math.max(lastRemoteAt, cp.at || 0); await applyPlan(cp); toast('Νέο πρόγραμμα από άλλον υπολογιστή, με τα ΓΡ του'); renderTT(); return; }
+      if (S.buf && toB64(S.buf) === remote.file) { renderTT(); return; }
       await loadBuffer(fromB64(remote.file), remote.fname || 'Πρόγραμμα.xlsx');
       toast('Νέο πρόγραμμα από άλλον υπολογιστή: ' + (remote.fname || '') + ' · νέα κατανομή ΓΡ');
     }
@@ -1548,12 +1577,18 @@ if ('serviceWorker' in navigator) window.addEventListener('load', () => navigato
           const remote = snap.exists ? snap.data() : null, mine = local();
           if (first) {
             first = false;
-            if (remote && (!mine || (remote.at || 0) > (mine.at || 0))) { lastRemoteAt = remote.at; applyPlan(remote).then(() => toast('Φορτώθηκε η κατανομή από το cloud')); }
-            else if (mine && mine.file) push(mine);
+            remoteWins(remote, mine).then(win => {
+              if (win) { lastRemoteAt = remote.at; applyPlan(remote).then(() => toast('Φορτώθηκε η κατανομή από το cloud')); }
+              else if (mine && mine.file) { lastRemoteAt = Math.max(lastRemoteAt, remote ? remote.at || 0 : 0); push(mine); }
+            });
             return;
           }
           if (remote && (remote.at || 0) > Math.max(lastRemoteAt, (local() || {}).at || 0)) {
-            lastRemoteAt = remote.at; applyPlan(remote).then(() => toast('Ενημερώθηκε από άλλη συσκευή'));
+            const at = remote.at;
+            remoteWins(remote, local()).then(win => {
+              if (win) { lastRemoteAt = at; applyPlan(remote).then(() => toast('Ενημερώθηκε από άλλη συσκευή')); }
+              else { const m = local(); if (m && m.file) { lastRemoteAt = Math.max(lastRemoteAt, at); push(m); } }   // παλιότερη εβδομάδα: την αγνοούμε
+            });
           }
         }, e => setBtn('☁ Σφάλμα συγχρονισμού', 'err', String(e.message || e)));
       });
