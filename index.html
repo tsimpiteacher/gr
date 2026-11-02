@@ -546,13 +546,13 @@ function parseSheet(ws) {
       const m = mergeAt(r, s.col);
       const v = m ? txt(ws.getCell(m.r1, m.c1).value) : txt(ws.getCell(r, s.col).value);
       const cell = m ? ws.getCell(m.r1, m.c1) : ws.getCell(r, s.col);
-      return { v, merged: !!m, wide: m ? (m.c2 - m.c1 + 1) : 1, grey: isGrey(cell.fill) };
+      return { v, merged: !!m, wide: m ? (m.c2 - m.c1 + 1) : 1, grey: isGrey(cell.fill), off: isOff(cell.fill) };
     });
     const blockedDays = [...new Set(cells.map((c, i) => c.grey ? slots[i].day : null).filter(d => d != null))];
     const staff = cells.some(c => c.wide >= 8); // e.g. ΝΟΣΗΛΕΥΤΗΣ across the week
     teachers.push({
       row: r, name, spec, staff, blockedDays,
-      grey: cells.map(c => c.grey),
+      grey: cells.map(c => c.grey), off: cells.map(c => c.off),
       cells: cells.map(c => c.v === GR && !c.merged ? 'G' : (c.v === PAR && !c.merged) ? 'F' : (c.v ? 'L' : 'F')),
       labels: cells.map(c => (c.v === GR || c.v === PAR ? '' : c.v)),
       fileParent: cells.findIndex(c => c.v === PAR && !c.merged),
@@ -604,6 +604,8 @@ function prefKeys(model, t, rules) {
     return (gap ? 0 : 1000) + (cnt[s.day] || 0) * 20 + Math.min(19, hp ? (hp[i] || 0) : 0);
   });
 }
+// Σημάδι της Συμπύκνωσης για «απών μόνο αυτή την ώρα» (μερική απουσία): δεν αποκλείει όλη τη μέρα όπως το γκρι.
+function isOff(fill) { return !!(fill && fill.fgColor && String(fill.fgColor.argb || '').toUpperCase() === 'FFFFD7D7'); }
 function eligibleBase(model, t, rules) {
   if (rules.onlyNear) {
     const strict = eligibleBase(model, t, Object.assign({}, rules, { onlyNear: false }));
@@ -619,6 +621,7 @@ function eligibleBase(model, t, rules) {
     if (t.cells[i] === 'L') return;
     if (t.parent === i) return;
     if (t.blockedDays.includes(s.day)) return;
+    if (t.off && t.off[i]) return;   // απών αυτή την ώρα (Συμπύκνωση)
     if (rules.noLastPeriod && s.period === model.maxPeriod[s.day]) return;
     const ls = lessonsByDay[s.day] || [];
     if (rules.onlyBetween && !(ls.some(p => p < s.period) && ls.some(p => p > s.period))) return;
@@ -775,7 +778,7 @@ function parentCandidates(model, t, avoid) {
   const idx = model.slots.map((s, i) => i).filter(i => model.slots[i].day === PARENT_DAY);
   const lessons = idx.filter(i => t.cells[i] === 'L').map(i => model.slots[i].period);
   if (!lessons.length) return [];
-  const free = idx.filter(i => t.cells[i] !== 'L' && model.slots[i].period !== model.maxPeriod[PARENT_DAY] && !(avoid && avoid.includes(i)));
+  const free = idx.filter(i => t.cells[i] !== 'L' && !(t.off && t.off[i]) && model.slots[i].period !== model.maxPeriod[PARENT_DAY] && !(avoid && avoid.includes(i)));
   const between = free.filter(i => { const p = model.slots[i].period; return lessons.some(x => x < p) && lessons.some(x => x > p); });
   return between.length ? between.concat(free.filter(i => !between.includes(i))) : free;
 }
@@ -807,7 +810,7 @@ function stats(model, assign) {
     assign[ti].forEach(i => perSlot[i]++);
     const present = {};
     t.cells.forEach((c, i) => { if (c === 'L') present[model.slots[i].day] = true; });
-    t.cells.forEach((c, i) => { const d = model.slots[i].day; if (c !== 'L' && t.parent !== i && present[d] && !t.blockedDays.includes(d)) free[i]++; });
+    t.cells.forEach((c, i) => { const d = model.slots[i].day; if (c !== 'L' && t.parent !== i && present[d] && !t.blockedDays.includes(d) && !(t.off && t.off[i])) free[i]++; });
   });
   const hours = model.teachers.map(t => t.cells.filter(c => c === 'L').length);
   return { perSlot, free, hours };
@@ -1104,6 +1107,7 @@ function renderGrid(){
     h += `<tr class="${t.staff ? 'staff' : ''}${S.hl === ti ? ' hl' : ''}${miss ? ' miss' : ''}"><td class="nmcol" title="${t.name} · ${t.spec}${miss ? ' · χρειάζεται ΓΡ: κλικ σε ένα κενό του' : ''}">${t.name}</td>`;
     m.slots.forEach((s,i) => {
       const ds = (i === 0 || m.slots[i-1].day !== s.day) ? ' dstart' : '';
+      if (t.off && t.off[i]) { h += `<td class="c X${ds}" title="${t.name} · ${DAYS[s.day]} ${s.period}η: απών αυτή την ώρα (Συμπύκνωση)"></td>`; return; }
       if (t.grey && t.grey[i]) { h += `<td class="c X${ds}" title="${t.name} · ${DAYS[s.day]}: γκρι, εξαιρείται όλη η μέρα">${t.cells[i] === 'L' ? (t.labels[i] || '').slice(0,4) : ''}</td>`; return; }
       if (t.cells[i] === 'L') { h += `<td class="c L${ds}">${t.staff ? '' : (t.labels[i] || '').slice(0,4)}</td>`; return; }
       if (t.parent === i) { h += `<td class="c P${S.parentLocked[ti] ? ' lock' : ''}${ds}" data-p="${ti}" title="${t.name} · ώρα γονέων ${DAYS[s.day]} ${s.period}η${S.mode === 'par' ? ' · κλικ για αφαίρεση' : ''}">ΓΟΝ</td>`; return; }
