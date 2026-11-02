@@ -366,6 +366,7 @@ td.covX{color:var(--muted);font-weight:400}
         <label><input type="checkbox" id="r-day" checked> Το πολύ ένα ΓΡ τη μέρα ανά εκπαιδευτικό (όσοι έχουν επιβάρυνση μπορούν και στην ίδια μέρα)</label>
         <label><input type="checkbox" id="r-present" checked> Μόνο σε μέρα που ο εκπαιδευτικός έχει μάθημα</label>
         <label><input type="checkbox" id="r-near" checked> Κοντά στο ωράριο του εκπαιδευτικού: σε κενό ανάμεσα σε μαθήματα ή στην ώρα αμέσως πριν έρθει / αμέσως αφού φύγει</label>
+        <label><input type="checkbox" id="r-pref" checked> Κατά προτίμηση σε κενό ανάμεσα σε μαθήματα και στις μέρες με τις λιγότερες ώρες</label>
         <label><input type="checkbox" id="r-between"> Μόνο σε κενό ανάμεσα σε μαθήματα</label>
         <label><input type="checkbox" id="r-keep"> Κράτα τα ΓΡ που υπάρχουν ήδη στο αρχείο</label>
         <label><input type="checkbox" id="r-duty" checked> Όχι ΓΡ σε μέρα που ο εκπαιδευτικός έχει εφημερία (όπου γίνεται) <span class="efinfo" id="dutyinfo"></span></label>
@@ -549,6 +550,22 @@ function nearPeriods(model, t, day) {
   const lo = Math.min(...pres), hi = Math.max(...pres);
   return p => (p > lo && p < hi) || p === lo - 1 || p === hi + 1;
 }
+// Πόσο «καλή» είναι μια ώρα για ΓΡ (μικρότερο = καλύτερο):
+// πρώτα κενό ανάμεσα σε μαθήματα, μετά μέρα με λιγότερες ώρες, μετά εναλλαγή σε σχέση με τις προηγούμενες εβδομάδες.
+function prefKeys(model, t, rules) {
+  const hp = t.histPen;
+  if (!rules.prefer) return model.slots.map((s, i) => hp ? (hp[i] || 0) : 0);
+  const per = {}, cnt = {};
+  model.slots.forEach((s, i) => {
+    if (t.cells[i] === 'L') cnt[s.day] = (cnt[s.day] || 0) + 1;
+    if (t.cells[i] === 'L' || t.parent === i) (per[s.day] = per[s.day] || []).push(s.period);
+  });
+  return model.slots.map((s, i) => {
+    const ps = per[s.day] || [];
+    const gap = ps.some(p => p < s.period) && ps.some(p => p > s.period);
+    return (gap ? 0 : 1000) + (cnt[s.day] || 0) * 20 + Math.min(19, hp ? (hp[i] || 0) : 0);
+  });
+}
 function eligibleBase(model, t, rules) {
   if (rules.onlyNear) {
     const strict = eligibleBase(model, t, Object.assign({}, rules, { onlyNear: false }));
@@ -580,6 +597,7 @@ function rng(seed) { let x = seed >>> 0 || 1; return () => { x ^= x << 13; x ^= 
 function solve(model, quotas, rules, opts = {}) {
   const N = model.slots.length, T = model.teachers.length;
   const elig = model.teachers.map(t => eligible(model, t, rules));
+  const pref = model.teachers.map(t => prefKeys(model, t, rules));
   const rand = rng(opts.seed || Date.now());
   const restarts = opts.restarts || 60;
   const fixed = opts.fixed || model.teachers.map(() => []);
@@ -608,9 +626,8 @@ function solve(model, quotas, rules, opts = {}) {
         if (!cand.length) continue;
         let m = Infinity; cand.forEach(i => m = Math.min(m, cnt[i]));
         cand = cand.filter(i => cnt[i] === m);
-        // εναλλαγή: ανάμεσα σε ισοδύναμες ώρες, προτίμησε όσες δεν είχε τις προηγούμενες εβδομάδες
-        const hp = model.teachers[t].histPen;
-        if (hp) { let pm = Infinity; cand.forEach(i => pm = Math.min(pm, hp[i] || 0)); cand = cand.filter(i => (hp[i] || 0) === pm); }
+        // προτίμηση (κενό ανάμεσα, μέρα με λιγότερες ώρες, εναλλαγή) ανάμεσα σε ισοδύναμες ώρες
+        const pk = pref[t]; { let pm = Infinity; cand.forEach(i => pm = Math.min(pm, pk[i])); cand = cand.filter(i => pk[i] === pm); }
         const pick = cand[Math.floor(rand() * cand.length)];
         asg[t].push(pick); cnt[pick]++; more = true;
       }
@@ -626,12 +643,12 @@ function solve(model, quotas, rules, opts = {}) {
           for (const to of elig[t]) {
             if (to === from || asg[t].includes(to)) continue;
             if (rules.onePerDay && quotas[t] <= 1 && days.has(model.slots[to].day)) continue;
-            if (cnt[to] + 1 < cnt[from]) { cnt[from]--; cnt[to]++; asg[t][k] = to; improved = true; break; }
+            if (cnt[to] + 1 < cnt[from] || (cnt[to] + 1 === cnt[from] && pref[t][to] < pref[t][from])) { cnt[from]--; cnt[to]++; asg[t][k] = to; improved = true; break; }
           }
         }
       }
     }
-    const sc = score(cnt);
+    const sc = score(cnt) * 1e6 + asg.reduce((a, x, t) => a + x.reduce((b, i) => b + pref[t][i], 0), 0);
     if (!best || sc < best.sc) best = { sc, asg: asg.map(a => a.slice()), cnt: cnt.slice() };
   }
   const shortfall = model.teachers.map((t, i) => Math.max(0, quotas[i] - best.asg[i].length));
@@ -643,6 +660,7 @@ function solve(model, quotas, rules, opts = {}) {
 function solveOnePerSlot(model, quotas, rules, opts = {}) {
   const N = model.slots.length, T = model.teachers.length;
   const elig = model.teachers.map(t => eligible(model, t, rules));
+  const pref = model.teachers.map(t => prefKeys(model, t, rules));
   const rand = rng(opts.seed || Date.now());
   const fixed = opts.fixed || model.teachers.map(() => []);
   const owner = new Array(N).fill(-1);            // slot -> teacher
@@ -660,7 +678,7 @@ function solveOnePerSlot(model, quotas, rules, opts = {}) {
   // try to give teacher t one more slot, moving other teachers' ΓΡ along an augmenting path
   function augment(t0) {
     const seen = new Set();
-    const order = t => { const hp = model.teachers[t].histPen, a = shuffle(elig[t].filter(i => !asg[t].includes(i))); return hp ? a.sort((x, y) => (hp[x] || 0) - (hp[y] || 0)) : a; };
+    const order = t => shuffle(elig[t].filter(i => !asg[t].includes(i))).sort((x, y) => pref[t][x] - pref[t][y]);
     function dfs(t, depth) {
       if (depth > 60) return false;
       for (const i of order(t)) {
@@ -689,6 +707,25 @@ function solveOnePerSlot(model, quotas, rules, opts = {}) {
       if (augment(t)) continue;
       if (quotas[t] > 1 && rules.onePerDay) { relaxed.add(t); augment(t); }
     }
+  // βελτίωση προτίμησης: μετακίνηση σε καλύτερη ελεύθερη ώρα ή ανταλλαγή ωρών ανάμεσα σε δύο εκπαιδευτικούς
+  const fixedSet = fixed.map(f => new Set(f));
+  const movable = (t, i) => !fixedSet[t].has(i);
+  for (let pass = 0, ch = true; ch && pass < 30; pass++) {
+    ch = false;
+    for (let t = 0; t < T; t++) for (let k = 0; k < asg[t].length; k++) {
+      const from = asg[t][k]; if (!movable(t, from)) continue;
+      for (const to of elig[t]) {
+        if (pref[t][to] >= pref[t][from] || asg[t].includes(to) || blocked.has(to) || !canTake(t, to, from)) continue;
+        const o = owner[to];
+        if (o < 0) { owner[from] = -1; owner[to] = t; asg[t][k] = to; ch = true; break; }
+        // ανταλλαγή με τον κάτοχο, αν η συνολική προτίμηση βελτιώνεται και η ώρα from του κάνει
+        if (o === t || !movable(o, to) || !elig[o].includes(from) || asg[o].includes(from) || !canTake(o, from, to)) continue;
+        if (pref[t][to] + pref[o][from] >= pref[t][from] + pref[o][to]) continue;
+        const ko = asg[o].indexOf(to);
+        asg[o][ko] = from; asg[t][k] = to; owner[from] = o; owner[to] = t; ch = true; break;
+      }
+    }
+  }
   const cnt = new Array(N).fill(0); asg.forEach(a => a.forEach(i => cnt[i]++));
   const shortfall = model.teachers.map((t, i) => Math.max(0, quotas[i] - asg[i].length));
   return { assign: asg, counts: cnt, shortfall, elig };
@@ -840,7 +877,7 @@ const store = {
   set(v){ try { localStorage.setItem('gr-settings-v1', JSON.stringify(v)); } catch(e){} }
 };
 let saved = store.get();
-const ruleIds = { parentsHour:'r-par', onePerSlot:'r-slot', noLastPeriod:'r-last', onePerDay:'r-day', onlyTeachingDays:'r-present', onlyBetween:'r-between', onlyNear:'r-near', keepExisting:'r-keep', efEx:'r-efex', avoidDuty:'r-duty', rotate:'r-rotate' };
+const ruleIds = { parentsHour:'r-par', onePerSlot:'r-slot', noLastPeriod:'r-last', onePerDay:'r-day', onlyTeachingDays:'r-present', onlyBetween:'r-between', onlyNear:'r-near', prefer:'r-pref', keepExisting:'r-keep', efEx:'r-efex', avoidDuty:'r-duty', rotate:'r-rotate' };
 if (saved.rules) for (const k in ruleIds) if (k in saved.rules) $(ruleIds[k]).checked = !!saved.rules[k];
 const rules = () => { const r = {}; for (const k in ruleIds) r[k] = $(ruleIds[k]).checked; return r; };
 function persist(){
