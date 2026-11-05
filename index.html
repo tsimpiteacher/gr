@@ -95,6 +95,17 @@ label.file-btn input{position:absolute;inset:0;opacity:0;cursor:pointer}
 .t:last-child{border-bottom:0}
 .t.hl{background:var(--gr-soft)}
 .t .nm{font-weight:600;min-width:0;overflow-wrap:anywhere;cursor:pointer}
+.t .pfb{border:0;background:transparent;color:var(--muted);font-size:1rem;padding:0 4px;margin-left:4px;cursor:pointer;vertical-align:-1px}
+.t .pfb.on{color:var(--gr)}
+.t .pfbox{grid-column:1 / -1;margin-top:6px;padding:10px 12px;border:1px solid var(--line);border-radius:8px;background:var(--bg);display:flex;flex-direction:column;gap:8px;font-size:.85rem}
+.pfbox .row{display:flex;flex-wrap:wrap;gap:6px 10px;align-items:center}
+.pfbox .lbl{font-weight:700;color:var(--muted);min-width:80px}
+.pfbox .dd{border:1px solid var(--line);border-radius:6px;padding:3px 8px;font-size:.8rem;font-weight:600;background:var(--panel);color:var(--muted)}
+.pfbox .dd[aria-pressed="true"]{background:var(--gr);border-color:var(--gr);color:var(--gr-ink)}
+.pfbox label{display:inline-flex;gap:5px;align-items:center;cursor:pointer}
+.pfbox input[type=text]{flex:1;min-width:0;font:inherit;padding:5px 8px;border:1px solid var(--line);border-radius:6px;background:var(--panel);color:var(--ink)}
+.pfbox .hint{color:var(--muted);font-size:.78rem}
+.tag.pf{background:var(--lesson);color:var(--ink);font-weight:600}
 .t .meta{grid-column:1;color:var(--muted);font-size:.8rem;font-variant-numeric:tabular-nums;display:flex;flex-wrap:wrap;gap:4px 10px}
 .t .tag{font-size:.72rem;font-weight:700;padding:1px 7px;border-radius:999px}
 .tag.ex{background:var(--lesson);color:var(--muted)}
@@ -163,6 +174,7 @@ table.parmode td.F[data-t]:hover,table.parmode td.G:hover{background:var(--par-s
 .mode button[data-m="par"][aria-pressed="true"]{background:var(--par);color:var(--par-ink)}
 .mode button[data-m="gr"][aria-pressed="true"]{background:var(--gr);color:var(--gr-ink)}
 td.G{background:var(--gr);color:var(--gr-ink);font-weight:700;cursor:pointer}
+td.G.nw{box-shadow:inset 0 0 0 3px #FFC233}
 td.G.lock::after{content:"";position:absolute;top:3px;right:3px;width:5px;height:5px;border-radius:50%;background:var(--gr-ink)}
 tr.staff td.nmcol{color:var(--muted)}
 tr.hl td.nmcol{color:var(--gr);font-weight:700}
@@ -189,7 +201,7 @@ td.covX{color:var(--muted);font-weight:400}
 </style>
 </head>
 <body>
-<!-- ===== Μπάρα σουίτας: αρχική + εναλλαγή Συμπύκνωση ⇄ Εφημερίες ⇄ ΓΡ ⇄ Αναπληρώσεις (ίδιο κομμάτι σε όλες τις εφαρμογές) ===== -->
+<!-- ===== Μπάρα σουίτας: αρχική + εναλλαγή Συμπύκνωση ⇄ Εφημερίες ⇄ ΓΡ (ίδιο κομμάτι σε όλες τις εφαρμογές) ===== -->
 <nav class="sbar" id="suiteBar" data-app="gr" aria-label="Εφαρμογές">
   <a class="sbar-home" href="../" title="Όλες οι εφαρμογές">
     <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3.5" y="3.5" width="7" height="7" rx="1.6"/><rect x="13.5" y="3.5" width="7" height="7" rx="1.6"/><rect x="3.5" y="13.5" width="7" height="7" rx="1.6"/><rect x="13.5" y="13.5" width="7" height="7" rx="1.6"/></svg>
@@ -214,10 +226,6 @@ td.covX{color:var(--muted);font-weight:400}
 <a class="sbar-opt gr" href="../gr/" data-to="gr">
       <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="3.5" width="18" height="17" rx="2.5"/><path d="M3 9h18M9 9v11.5M15 9v11.5"/></svg>
       <b class="sn">3</b><span>ΓΡ</span>
-    </a>
-<a class="sbar-opt an" href="../anaplirwseis/" data-to="an">
-      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="9" cy="8" r="3.2"/><path d="M3.5 19.5a5.5 5.5 0 0 1 11 0"/><path d="M16 7.5h5M18.5 5v5"/></svg>
-      <b class="sn">4</b><span class="l">Αναπληρώσεις</span><span class="s">Αναπλ.</span>
     </a>
   </div>
   <a class="sbar-next" id="sbarNext" href="../" hidden><span class="nl"></span><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12h14M13 6l6 6-6 6"/></svg></a>
@@ -301,7 +309,7 @@ td.covX{color:var(--muted);font-weight:400}
   try { localStorage.setItem('suite-last-app', app); } catch (e) { /* αγνόησε */ }
   // ---- Επόμενο βήμα της εβδομάδας: Συμπύκνωση → Εφημερίες → ΓΡ → Αναπληρώσεις → (αρχική: λήψη όλων) ----
   // Μια εφαρμογή μπορεί να ορίσει window.suiteNext(href) για να ετοιμάσει πρώτα κάτι (π.χ. η Συμπύκνωση το πρόγραμμα).
-  var NEXT = { sy: ['../efimeries/?from=sy', 'Επόμενο: Εφημερίες'], ef: ['../gr/?from=ef', 'Επόμενο: ΓΡ'], gr: ['../anaplirwseis/?from=gr', 'Επόμενο: Αναπληρώσεις'], an: ['../#week', 'Τέλος: Λήψη όλων'] };
+  var NEXT = { sy: ['../efimeries/?from=sy', 'Επόμενο: Εφημερίες'], ef: ['../gr/?from=ef', 'Επόμενο: ΓΡ'], gr: ['../#week', 'Τέλος: Λήψη όλων'] };
   var nx = document.getElementById('sbarNext');
   if (nx && NEXT[app]) {
     nx.href = NEXT[app][0]; nx.querySelector('.nl').textContent = NEXT[app][1]; nx.title = NEXT[app][1]; nx.hidden = false;
@@ -634,7 +642,8 @@ function prefKeys(model, t, rules) {
   return model.slots.map((s, i) => {
     const ps = per[s.day] || [];
     const gap = ps.some(p => p < s.period) && ps.some(p => p > s.period);
-    return (gap ? 0 : 1000) + (cnt[s.day] || 0) * 20 + Math.min(19, hp ? (hp[i] || 0) : 0);
+    const pos = t.pref && t.pref.pos, tier = pos === 'edge' ? (gap ? 1000 : 0) : pos === 'any' ? 0 : (gap ? 0 : 1000);
+    return tier + (cnt[s.day] || 0) * 20 + Math.min(19, hp ? (hp[i] || 0) : 0);
   });
 }
 // Σημάδι της Συμπύκνωσης για «απών μόνο αυτή την ώρα» (μερική απουσία): δεν αποκλείει όλη τη μέρα όπως το γκρι.
@@ -655,6 +664,8 @@ function eligibleBase(model, t, rules) {
     if (t.parent === i) return;
     if (t.blockedDays.includes(s.day)) return;
     if (t.off && t.off[i]) return;   // απών αυτή την ώρα (Συμπύκνωση)
+    const pf = t.pref;               // μόνιμες προτιμήσεις του εκπαιδευτικού (⚙)
+    if (pf) { if (Array.isArray(pf.days) && !pf.days.includes(s.day)) return; if (pf.no1 && s.period === 1) return; if (pf.no6 && s.period === 6) return; }
     if (rules.noLastPeriod && s.period === model.maxPeriod[s.day]) return;
     const ls = lessonsByDay[s.day] || [];
     if (rules.onlyBetween && !(ls.some(p => p < s.period) && ls.some(p => p > s.period))) return;
@@ -957,7 +968,7 @@ const rules = () => { const r = {}; for (const k in ruleIds) r[k] = $(ruleIds[k]
 function persist(){
   const q = Object.assign({}, saved.quotas || {});
   if (S.model) S.model.teachers.forEach((t,i) => { if (!t.staff && !(S.efEx && S.efEx[i] && S.quotas[i] === 0)) q[t.name] = S.quotas[i]; });
-  saved = { quotas:q, rules:rules() }; store.set(saved);
+  saved = { quotas:q, rules:rules(), prefs: saved.prefs || {} }; store.set(saved);
 }
 function toast(msg){ const t = $('toast'); t.textContent = msg; t.hidden = false; clearTimeout(toast.h); toast.h = setTimeout(()=>t.hidden = true, 3200); }
 function showError(msg){ const e = $('error'); e.textContent = msg; e.hidden = !msg; }
@@ -969,6 +980,20 @@ function lockedParents(){
   return S.model.teachers.map((t, i) => S.parentLocked[i] && S.parents[i] >= 0 ? { name: t.name, day: S.model.slots[S.parents[i]].day, period: S.model.slots[S.parents[i]].period } : null).filter(Boolean);
 }
 // ΓΡ που κλείδωσες με το χέρι, ως «όνομα/μέρα/ώρα»: κρατιούνται όταν έρχεται νέο πρόγραμμα της ίδιας εβδομάδας.
+// Όλα τα ΓΡ της τρέχουσας κατανομής (κλειδωμένα ή όχι), ως «όνομα/μέρα/ώρα».
+function allGr(){
+  if (!S.model) return [];
+  const out = [];
+  S.model.teachers.forEach((t, i) => (S.assign[i] || []).forEach(si => out.push({ name: t.name, day: S.model.slots[si].day, period: S.model.slots[si].period })));
+  return out;
+}
+// Ημερομηνία εβδομάδας από τον τίτλο του Excel (π.χ. «Ωρολόγιο πρόγραμμα από 02/11/2026») → «2026-11-02».
+function titleDate(title){ const m = /(\d{1,2})[\/.\-](\d{1,2})[\/.\-](\d{4})/.exec(title || ''); return m ? `${m[3]}-${String(m[2]).padStart(2,'0')}-${String(m[1]).padStart(2,'0')}` : ''; }
+function keepForSameWeek(force){
+  if (!S.model) return null;
+  const pars = S.model.teachers.map((t, i) => S.parents[i] >= 0 ? { name: t.name, day: S.model.slots[S.parents[i]].day, period: S.model.slots[S.parents[i]].period } : null).filter(Boolean);
+  return { force: !!force, date: titleDate(S.model.title), par: lockedParents(), gr: lockedGr(), all: allGr(), pars };
+}
 function lockedGr(){
   if (!S.model) return [];
   const out = [];
@@ -977,7 +1002,7 @@ function lockedGr(){
 }
 // Ταυτότητα εβδομάδας του κοινού προγράμματος (η Συμπύκνωση γράφει το αρχικό στο sy.baseAt).
 const ttWeek = t => t ? (t.from === 'sy' && t.sy && t.sy.baseAt ? t.sy.baseAt : t.at) : 0;
-async function loadBuffer(buf, name, plan, keepPar, keepGr){
+async function loadBuffer(buf, name, plan, keepPar, keepGr, keep){
   showError('');
   if (!window.ExcelJS) { showError('Η βιβλιοθήκη για τα αρχεία Excel δεν φόρτωσε. Κλείσε και ξανάνοιξε την εφαρμογή ή πάτα Ctrl+Shift+R. Χρειάζεται σύνδεση στο internet την πρώτη φορά.'); return; }
   try {
@@ -985,10 +1010,16 @@ async function loadBuffer(buf, name, plan, keepPar, keepGr){
     const m = parseSheet(wb.worksheets[0]);
     S.buf = buf; S.fname = name; S.model = m; S.hl = -1;
     const q = (saved.quotas) || {};
+    m.teachers.forEach(t => { t.pref = (saved.prefs || {})[t.name] || null; });
     S.quotas = m.teachers.map(t => t.staff ? 0 : (t.name in q ? q[t.name] : 1));
     S.locked = m.teachers.map(() => []);
     S.parents = m.teachers.map(() => -1);
     S.parentLocked = m.teachers.map((t, i) => !!(plan && Array.isArray(plan.parentLocked) && plan.parentLocked.length === m.teachers.length && plan.parentLocked[i]));
+    // Διορθωμένο πρόγραμμα της ίδιας εβδομάδας: κρατιούνται ΟΛΑ τα ΓΡ που ισχύουν ακόμα, όχι μόνο τα κλειδωμένα.
+    let keepAll = null;
+    if (keep && (keep.force || (keep.date && titleDate(m.title) === keep.date))) {
+      keepPar = (keepPar || []).concat(keep.par || []); keepGr = (keepGr || []).concat(keep.gr || []); keepAll = keep.all || null;
+    }
     (keepPar || []).forEach(k => {
       const ti = m.teachers.findIndex(t => t.name === k.name), si = m.slots.findIndex(s => s.day === k.day && s.period === k.period);
       if (ti >= 0 && si >= 0 && m.teachers[ti].cells[si] !== 'L' && !(m.teachers[ti].off && m.teachers[ti].off[si])) { S.parents[ti] = si; S.parentLocked[ti] = true; }
@@ -1031,6 +1062,32 @@ async function loadBuffer(buf, name, plan, keepPar, keepGr){
       }
       S.elig = eligNow(); S.dirty = moved > 0; savePlan(); render();
       toast('Φορτώθηκαν τα ΓΡ που υπάρχουν στο αρχείο' + (moved ? ` · ${moved} ΓΡ έδωσαν τη θέση τους σε ώρα γονέων — πάτα «Νέα κατανομή» για να ξαναμπούν` : ''));
+    } else if (keepAll) {
+      const before = new Set(keepAll.map(k => k.name + '|' + k.day + '|' + k.period));
+      S.keepOnce = m.teachers.map(() => []);
+      let kept = 0;
+      // και οι ώρες γονέων που ισχύουν ακόμα μένουν (προσωρινά «κλειδωμένες» μόνο για αυτή την κατανομή)
+      const lk0 = S.parentLocked.slice();
+      (keep.pars || []).forEach(k => {
+        const ti = m.teachers.findIndex(t => t.name === k.name), si = m.slots.findIndex(s => s.day === k.day && s.period === k.period);
+        if (ti < 0 || si < 0 || S.parents[ti] >= 0) return;
+        const t = m.teachers[ti];
+        if (t.cells[si] !== 'L' && !(t.off && t.off[si]) && !t.blockedDays.includes(k.day)) { S.parents[ti] = si; S.parentLocked[ti] = true; }
+      });
+      setParents(S.parents);
+      keepAll.forEach(k => {
+        const ti = m.teachers.findIndex(t => t.name === k.name), si = m.slots.findIndex(s => s.day === k.day && s.period === k.period);
+        if (ti < 0 || si < 0) return;
+        const t = m.teachers[ti];
+        if (t.staff || t.cells[si] === 'L' || (t.off && t.off[si]) || t.blockedDays.includes(k.day) || S.locked[ti].includes(si) || S.keepOnce[ti].length + S.locked[ti].length >= S.quotas[ti]) return;
+        S.keepOnce[ti].push(si);
+      });
+      run();
+      S.parentLocked = lk0.map((l, i) => l || false);
+      S.newGr = new Set(); let added = 0;
+      S.assign.forEach((a, ti) => a.forEach(si => { const t = m.teachers[ti], k = t.name + '|' + m.slots[si].day + '|' + m.slots[si].period; if (before.has(k)) kept++; else { added++; S.newGr.add(ti + ':' + si); } }));
+      S.keepInfo = { kept, added, lost: before.size - kept };
+      S.keepOnce = null; savePlan(true); render();
     } else run();
   } catch(e) { showError('Δεν μπόρεσα να διαβάσω το αρχείο: ' + (e.message || e) + ' Βεβαιώσου ότι είναι .xlsx με εκπαιδευτικούς στη στήλη Α και τις ημέρες στην επικεφαλίδα.'); }
 }
@@ -1050,7 +1107,7 @@ function newParents(avoid){
 function fixedSets(){
   const m = S.model, r = rules();
   return m.teachers.map((t,ti) => {
-    const f = new Set(S.locked[ti]);
+    const f = new Set(S.locked[ti].concat((S.keepOnce && S.keepOnce[ti]) || []));
     // ΓΡ του αρχείου κρατιούνται, εκτός αν πέφτουν πάνω στην ώρα γονέων (οι γονείς προηγούνται)
     if (r.keepExisting) t.cells.forEach((c,i) => { if (c === 'G' && S.parents[ti] !== i) f.add(i); });
     return [...f];
@@ -1061,6 +1118,7 @@ function run(){
   newParents(S.locked);            // πρώτα οι ώρες γονέων (αποφεύγουν μόνο τα ΓΡ που κλείδωσες με το χέρι)
   const fx = fixedSets();          // μετά τα ΓΡ
   const r = rules(), o = { fixed: fx, restarts: 80, seed: (Math.random()*1e9)|0 };
+  if (!S.keepOnce) { S.newGr = null; S.keepInfo = null; }
   const res = r.onePerSlot ? solveOnePerSlot(S.model, S.quotas, r, o) : solve(S.model, S.quotas, r, o);
   S.assign = res.assign; S.elig = res.elig; S.dirty = false;
   savePlan(); render();
@@ -1082,7 +1140,7 @@ function savePlan(auto){
 async function applyPlan(p){
   if (!p || !p.file) return;
   if (p.settings && typeof p.settings === 'object') {
-    saved = { quotas: p.settings.quotas || {}, rules: p.settings.rules || rules() }; store.set(saved);
+    saved = { quotas: p.settings.quotas || {}, rules: p.settings.rules || rules(), prefs: p.settings.prefs || saved.prefs || {} }; store.set(saved);
     for (const k in ruleIds) if (saved.rules && k in saved.rules) $(ruleIds[k]).checked = !!saved.rules[k];
   }
   try { localStorage.setItem(PLAN_KEY, JSON.stringify(p)); } catch(e) {}
@@ -1143,14 +1201,16 @@ function renderRoster(){
     const hours = t.cells.filter(c => c === 'L').length;
     const li = document.createElement('li');
     li.className = 't' + (S.hl === i ? ' hl' : '');
-    li.innerHTML = `<span class="nm" data-i="${i}" title="Επισήμανση στο πρόγραμμα">${t.name}</span>
+    const pf = t.pref, pfOn = !!(pf && ((pf.days && pf.days.length < 5) || pf.no1 || pf.no6 || (pf.pos && pf.pos !== 'gap') || pf.note));
+    li.innerHTML = `<span><span class="nm" data-i="${i}" title="Επισήμανση στο πρόγραμμα">${t.name}</span><button type="button" class="pfb${pfOn ? ' on' : ''}" data-pf="${i}" title="Μόνιμες προτιμήσεις" aria-label="Προτιμήσεις ${t.name}" aria-expanded="${S.pfOpen === i}">⚙</button></span>
       <div class="step"><button type="button" data-d="-1" data-i="${i}" aria-label="Λιγότερα ΓΡ για ${t.name}">−</button>
       <output class="${q === 0 ? 'zero' : q > 1 ? 'up' : ''}">${q}</output>
       <button type="button" data-d="1" data-i="${i}" aria-label="Περισσότερα ΓΡ για ${t.name}">+</button></div>
       <span class="meta"><span>${t.spec}</span><span>${hours} ώρ. μαθ.</span><span>${S.elig[i].length} κατάλληλα κενά</span>${t.blockedDays.length ? `<span>εκτός: ${t.blockedDays.map(d => DAYS_SHORT[d]).join(', ')}</span>` : ''}
       ${q === 0 ? `<span class="tag ex">${S.efEx && S.efEx[i] ? 'εξαίρεση · Εφημερίες' : 'εξαίρεση'}</span>` : ''}${q > 1 ? `<span class="tag more">επιβάρυνση ×${q}</span>` : ''}
       ${clashDays(i).length ? `<span class="tag duty">ΓΡ + εφημερία: ${clashDays(i).map(d => DAYS_SHORT[d]).join(', ')}</span>` : ''}
-      ${sh > 0 ? `<span class="tag short">λείπ${sh === 1 ? 'ει' : 'ουν'} ${sh}</span>` : ''}</span>`;
+      ${sh > 0 ? `<span class="tag short">λείπ${sh === 1 ? 'ει' : 'ουν'} ${sh}</span>` : ''}${pfOn ? `<span class="tag pf" title="${escH(pfText(pf))}">⚙ ${escH(pf.note || pfText(pf))}</span>` : ''}</span>
+      ${S.pfOpen === i ? pfBox(i) : ''}`;
     el.appendChild(li);
   });
   if (!el.children.length) el.innerHTML = '<li class="t"><span class="meta">Κανένας εκπαιδευτικός σε αυτή την κατηγορία.</span></li>';
@@ -1173,7 +1233,7 @@ function renderGrid(){
       if (t.grey && t.grey[i]) { h += `<td class="c X${ds}" title="${t.name} · ${DAYS[s.day]}: γκρι, εξαιρείται όλη η μέρα">${t.cells[i] === 'L' ? (t.labels[i] || '').slice(0,4) : ''}</td>`; return; }
       if (t.cells[i] === 'L') { h += `<td class="c L${ds}">${t.staff ? '' : (t.labels[i] || '').slice(0,4)}</td>`; return; }
       if (t.parent === i) { h += `<td class="c P${S.parentLocked[ti] ? ' lock' : ''}${ds}" data-p="${ti}" title="${t.name} · ώρα γονέων ${DAYS[s.day]} ${s.period}η${S.mode === 'par' ? ' · κλικ για αφαίρεση' : ''}">ΓΟΝ</td>`; return; }
-      if (set.has(i)) { const dd = t.dutyDays && t.dutyDays.includes(s.day); h += `<td class="c G${lock.has(i) ? ' lock' : ''}${dd ? ' D' : ''}${ds}" data-t="${ti}" data-s="${i}" title="${t.name} · ${DAYS[s.day]} ${s.period}η${dd ? ' · έχει και εφημερία αυτή τη μέρα' : ''} · κλικ για αφαίρεση">ΓΡ</td>`; return; }
+      if (set.has(i)) { const dd = t.dutyDays && t.dutyDays.includes(s.day), nw = S.newGr && S.newGr.has(ti + ':' + i); h += `<td class="c G${lock.has(i) ? ' lock' : ''}${dd ? ' D' : ''}${nw ? ' nw' : ''}${ds}" data-t="${ti}" data-s="${i}" title="${t.name} · ${DAYS[s.day]} ${s.period}η${nw ? ' · νέα θέση μετά την αλλαγή προγράμματος' : ''}${dd ? ' · έχει και εφημερία αυτή τη μέρα' : ''} · κλικ για αφαίρεση">ΓΡ</td>`; return; }
       const ok = el.has(i), taken = cnt[i] > 0;
       h += t.staff ? `<td class="c F no${ds}"></td>`
         : `<td class="c F ${ok ? 'ok' : 'no man'}${ds}" data-t="${ti}" data-s="${i}" title="${t.name} · ${DAYS[s.day]} ${s.period}η · κλικ για ΓΡ${ok ? '' : ' (εκτός κανόνων)'}${taken ? ' · η ώρα έχει ήδη ΓΡ' : ''}"></td>`;
@@ -1201,7 +1261,50 @@ function renderGrid(){
 }
 
 // events
+// ---- Μόνιμες προτιμήσεις ανά εκπαιδευτικό (μένουν στις ρυθμίσεις του ΓΡ και συγχρονίζονται με τις άλλες συσκευές) ----
+function pfText(pf){
+  if (!pf) return '';
+  const a = [];
+  if (pf.days && pf.days.length < 5) a.push('μόνο ' + pf.days.map(d => DAYS_SHORT[d]).join(', '));
+  if (pf.no1) a.push('όχι 1η'); if (pf.no6) a.push('όχι 6η');
+  if (pf.pos === 'edge') a.push('αρχή/τέλος'); if (pf.pos === 'any') a.push('αδιάφορο');
+  return a.join(' · ') || 'προτιμήσεις';
+}
+function pfBox(i){
+  const t = S.model.teachers[i], pf = t.pref || {}, days = pf.days || [0,1,2,3,4], pos = pf.pos || 'gap';
+  return `<div class="pfbox" data-pfi="${i}">
+    <div class="row"><span class="lbl">Μέρες ΓΡ</span>${DAYS_SHORT.map((d, k) => `<button type="button" class="dd" data-pd="${k}" aria-pressed="${days.includes(k)}">${d}</button>`).join('')}</div>
+    <div class="row"><span class="lbl">Ώρες</span><label><input type="checkbox" data-pk="no1"${pf.no1 ? ' checked' : ''}> όχι 1η</label><label><input type="checkbox" data-pk="no6"${pf.no6 ? ' checked' : ''}> όχι 6η</label></div>
+    <div class="row"><span class="lbl">Προτίμηση</span>${[['gap','κενό ανάμεσα'],['edge','αρχή/τέλος'],['any','αδιάφορο']].map(([v, l]) => `<label><input type="radio" name="pfpos${i}" data-pp="${v}"${pos === v ? ' checked' : ''}> ${l}</label>`).join('')}</div>
+    <div class="row"><span class="lbl">Σημείωση</span><input type="text" data-pn maxlength="80" value="${escH(pf.note || '')}" placeholder="π.χ. Πέμπτη σε άλλο σχολείο"></div>
+    <span class="hint">Μένουν για κάθε εβδομάδα. Οι ώρες που δεν επιτρέπονται φαίνονται γραμμοσκιασμένες στον πίνακα· πάτα «Νέα κατανομή» για να εφαρμοστούν.</span>
+  </div>`;
+}
+function pfSet(i, patch){
+  const t = S.model.teachers[i], cur = Object.assign({ days: [0,1,2,3,4], no1: false, no6: false, pos: 'gap', note: '' }, t.pref || {}, patch);
+  const empty = cur.days.length === 5 && !cur.no1 && !cur.no6 && cur.pos === 'gap' && !cur.note;
+  saved.prefs = Object.assign({}, saved.prefs || {});
+  if (empty) delete saved.prefs[t.name]; else saved.prefs[t.name] = cur;
+  t.pref = empty ? null : cur;
+  store.set(saved); S.elig = eligNow(); render();
+}
+$('tlist').addEventListener('change', e => {
+  const box = e.target.closest('.pfbox'); if (!box) return;
+  const i = +box.dataset.pfi;
+  if (e.target.dataset.pk) pfSet(i, { [e.target.dataset.pk]: e.target.checked });
+  else if (e.target.dataset.pp) pfSet(i, { pos: e.target.dataset.pp });
+  else if ('pn' in e.target.dataset) pfSet(i, { note: e.target.value.trim() });
+});
 $('tlist').addEventListener('click', e => {
+  const pb = e.target.closest('button[data-pf]');
+  if (pb) { const i = +pb.dataset.pf; S.pfOpen = S.pfOpen === i ? -1 : i; renderRoster(); return; }
+  const dd = e.target.closest('button[data-pd]');
+  if (dd) {
+    const i = +dd.closest('.pfbox').dataset.pfi, k = +dd.dataset.pd, t = S.model.teachers[i];
+    const days = ((t.pref && t.pref.days) || [0,1,2,3,4]).slice(), j = days.indexOf(k);
+    if (j >= 0) { if (days.length === 1) { toast('Χρειάζεται τουλάχιστον μία μέρα'); return; } days.splice(j, 1); } else days.push(k);
+    pfSet(i, { days: days.sort() }); return;
+  }
   const b = e.target.closest('button[data-d]');
   if (b) {
     const i = +b.dataset.i; S.quotas[i] = Math.max(0, Math.min(5, S.quotas[i] + +b.dataset.d));
@@ -1373,7 +1476,10 @@ function ttShare(buf, name){
   ttMarkUsed(at); renderTT();
   if (window.onTTShared) window.onTTShared(t);
 }
-async function loadUser(buf, name){ await loadBuffer(buf, name); if (S.buf === buf) ttShare(buf, name); }
+async function loadUser(buf, name){
+  await loadBuffer(buf, name, null, null, null, keepForSameWeek(false));   // διορθωμένο πρόγραμμα ίδιας ημερομηνίας: μένουν τα ΓΡ που ισχύουν
+  if (S.buf === buf) { ttShare(buf, name); const ki = S.keepInfo; if (ki) toast(`Ίδια εβδομάδα · κρατήθηκαν ${ki.kept} ΓΡ, ${ki.added} μπήκαν σε νέα θέση (κίτρινο περίγραμμα)`); }
+}
 function whenLabel(t){
   const d = new Date(t), p = n => String(n).padStart(2, '0'), today = new Date(), y = new Date(); y.setDate(today.getDate() - 1);
   const day = d.toDateString() === today.toDateString() ? 'σήμερα' : d.toDateString() === y.toDateString() ? 'χθες' : `${p(d.getDate())}/${p(d.getMonth()+1)}`;
@@ -1394,10 +1500,12 @@ async function ttAutoLoad(){
   try {
     const wk = ttWeek(t), same = !!S.model && (S.week ? S.week === wk : (t.from === 'sy' && !t.newWeek));
     const kp = same ? lockedParents() : [], kg = same ? lockedGr() : [];
+    const keep = keepForSameWeek(same);   // ίδια εβδομάδα (ή ίδια ημερομηνία στο Excel): μένουν όλα τα ΓΡ που ισχύουν ακόμα
     ttMarkUsed(t.at);
-    await loadBuffer(fromB64(t.file), t.fname || 'Πρόγραμμα.xlsx', null, kp, kg);
+    await loadBuffer(fromB64(t.file), t.fname || 'Πρόγραμμα.xlsx', null, kp, kg, keep);
     S.week = wk; savePlan(true);
-    toast('Ενημερώθηκε από ' + (TT_FROM[t.from] || 'άλλη εφαρμογή') + (kp.length || kg.length ? ` · κρατήθηκαν ${kg.length} ΓΡ και ${kp.length} ώρες γονέων που όρισες` : ' · νέα κατανομή ΓΡ'));
+    const ki = S.keepInfo;
+    toast('Ενημερώθηκε από ' + (TT_FROM[t.from] || 'άλλη εφαρμογή') + (ki ? ` · κρατήθηκαν ${ki.kept} ΓΡ, ${ki.added} μπήκαν σε νέα θέση (κίτρινο περίγραμμα)` : kp.length || kg.length ? ` · κρατήθηκαν ${kg.length} ΓΡ και ${kp.length} ώρες γονέων που όρισες` : ' · νέα κατανομή ΓΡ'));
   } finally { ttLoading = false; }
 }
 function renderTT(){
