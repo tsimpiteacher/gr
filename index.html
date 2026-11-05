@@ -2,6 +2,7 @@
 <html lang="el">
 <head>
 <meta charset="utf-8">
+<script src="/suite-sync.js"></script>
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <title>Κατανομή ΓΡ</title>
 <meta name="description" content="Κατανομή ΓΡ στο ωρολόγιο πρόγραμμα του σχολείου">
@@ -1563,6 +1564,7 @@ if ('serviceWorker' in navigator) window.addEventListener('load', () => navigato
 <script>
 // ---- Συγχρονισμός μέσω Firebase (μόνο αν υπάρχει firebase-config.js με στοιχεία) ----
 (function(){
+  if (window.SUITE_SYNC) return;   // ο κοινός συγχρονισμός της σουίτας (☁ στην μπάρα) κάνει πλέον όλη τη δουλειά
   const cfg = window.FIREBASE_CONFIG;
   const suiteSync = st => { try { localStorage.setItem('suite-sync-gr', JSON.stringify({ state: st, at: st === 'on' ? Date.now() : 0 })); } catch(e) {} };
   if (!cfg || !cfg.apiKey || !cfg.projectId) { suiteSync('off'); return; }
