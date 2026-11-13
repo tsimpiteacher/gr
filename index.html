@@ -1434,11 +1434,20 @@ function decolor(ws, nameRows){   // nameRows: γραμμές εκπαιδευτ
     if (ch) c.style = ns;   // νέο αντικείμενο: το ExcelJS μοιράζει τα στυλ ανάμεσα σε κελιά
   }));
 }
+// Μόνη εξαίρεση στο «χωρίς χρώματα»: ΓΡ κόκκινα & έντονα, ΓΟΝ μπλε (0,112,192) & έντονα.
+const CODE_FONT = { [GR]: 'FFFF0000', [PAR]: 'FF0070C0' };
+function markCodes(ws, model){
+  model.teachers.forEach(t => model.slots.forEach(s => {
+    const c = ws.getCell(t.row, s.col), col = CODE_FONT[txt(c.value)];
+    if (col) c.style = Object.assign({}, c.style, { font: Object.assign({}, c.font || {}, { bold: true, color: { argb: col } }) });
+  }));
+}
 async function buildExcelFile(){
   const wb = new ExcelJS.Workbook(); await wb.xlsx.load(S.buf.slice(0));
   dropNotes(wb.worksheets[0]);
   writeSheet(wb.worksheets[0], S.model, S.assign, S.quotas, S.parents);
   decolor(wb.worksheets[0], new Set(S.model.teachers.map(t => t.row)));
+  markCodes(wb.worksheets[0], S.model);
   const out = await wb.xlsx.writeBuffer();
   return { name: S.fname.replace(/\.xlsx$/i, '') + '_ΓΡ.xlsx', blob: new Blob([out], { type:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' }) };
 }
