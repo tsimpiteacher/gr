@@ -1396,7 +1396,8 @@ const SAVE_TYPES = {
 async function saveAs(name, make) {
   const type = SAVE_TYPES[(String(name).match(/\.(\w+)$/) || [])[1]];
   let handle = null;
-  if (typeof window.showSaveFilePicker === 'function' && window.self === window.top) {
+  // Το «Αποθήκευση ως» του Chrome ακυρωνόταν μόνο του (σχολείο και σπίτι) → πάντα κανονική λήψη στις Λήψεις.
+  if (false && typeof window.showSaveFilePicker === 'function' && window.self === window.top) {
     const t0 = Date.now();   // «ακύρωση» μέσα σε κλάσματα δευτερολέπτου = το παράθυρο δεν άνοιξε καν → απλή λήψη
     try { handle = await window.showSaveFilePicker({ suggestedName: name, id: 'suite-save', types: type ? [type] : undefined }); }
     catch (e) { if (e && e.name === 'AbortError' && Date.now() - t0 > 700) return 'cancelled'; handle = null; }
